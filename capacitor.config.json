@@ -1,0 +1,6 @@
+{
+  "appId": "com.mihucha.app",
+  "appName": "Mi Hucha",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#0c1210", "adjustMarginsForEdgeToEdge": "auto" }
+}

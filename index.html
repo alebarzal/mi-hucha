@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#0f6b4b" />
+    <title>Mi Hucha</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <button id="fab" data-act="add" aria-label="Apunte rápido">＋</button>
+    <nav id="tabs"></nav>
+    <div id="sheet" hidden></div>
+    <div id="toast" hidden></div>
+    <div id="lock" hidden></div>
+    <input id="file-pdf" type="file" accept="application/pdf,.pdf" hidden />
+    <input id="file-json" type="file" accept="application/json,.json" hidden />
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

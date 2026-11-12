@@ -1,0 +1,25 @@
+{
+  "name": "mi-hucha",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "android": "vite build && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/core": "^7.4.0",
+    "@capacitor/filesystem": "^7.1.9",
+    "@capacitor/local-notifications": "^7.0.7",
+    "@capacitor/share": "^7.0.4",
+    "pdfjs-dist": "4.10.38"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.0",
+    "vite": "^6.0.0"
+  },
+  "author": "alebarzal",
+  "description": "App Android para gestionar nóminas, ahorros, gastos y viajes a partir de los PDF del banco."
+}
