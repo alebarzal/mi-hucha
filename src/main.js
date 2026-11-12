@@ -57,13 +57,14 @@ window.addEventListener('popstate', () => { if (skipPop) skipPop--; else closeSh
 
 // ---------- piezas ----------
 const ICONS = {
+  spending: '<path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.500A9 9 0 0 1 20.500 9H15z"/>',
   trips: '<rect x="3" y="7" width="18" height="13" rx="2.500"/><path d="M8.500 7V5.500A2 2 0 0 1 10.500 3.500h3a2 2 0 0 1 2 2V7M3 13h18"/>',
   home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   movs: '<path d="M4 6h16M4 12h16M4 18h10"/>',
   payroll: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',
   savings: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M15 9.5c-.6-1-1.700-1.500-3-1.500-1.700 0-3 .900-3 2s1.300 2 3 2 3 .900 3 2-1.300 2-3 2c-1.300 0-2.400-.500-3-1.500"/>',
 };
-const TABS = [['home', 'Inicio'], ['movs', 'Movimientos'], ['payroll', 'Nóminas'], ['savings', 'Ahorro'], ['trips', 'Viajes']];
+const TABS = [['home', 'Inicio'], ['movs', 'Movimientos'], ['spending', 'Gastos'], ['payroll', 'Nóminas'], ['savings', 'Ahorro'], ['trips', 'Viajes']];
 
 function movRow(m) {
   const c = CATS[m.cat] || CATS.otros;
@@ -343,6 +344,8 @@ function settingsSheet() {
       <div class="actions"><button class="btn ghost" data-act="noti-perm">Dar permiso</button></div>
       <p class="hint">Si Android muestra «Mi Hucha» en gris: Ajustes del móvil → Aplicaciones → Mi Hucha → menú ⋮ → «Permitir ajustes restringidos», y vuelve a intentarlo.</p>`}
     ${notiDiag()}
+    <h3>Botón atrás</h3>
+    <label class="check"><input type="checkbox" data-act="exit-ask" ${db.settings.exitNoAsk ? '' : 'checked'} /><span class="row-main"><b>Preguntar antes de salir</b><small>Al ir atrás desde Inicio</small></span></label>
     <h3>Recordatorios</h3>
     <p class="hint">${db.settings.remind ? 'Activados: te aviso a los 15 días sin importar y al día siguiente de cobrar.' : 'Desactivados.'}</p>
     <div class="actions"><button class="btn ghost" data-act="remind" data-on="${db.settings.remind ? 0 : 1}">${db.settings.remind ? 'Desactivar avisos' : 'Activar avisos'}</button></div>
@@ -603,6 +606,66 @@ function tripSheet(t) {
     <div class="actions"><button class="btn ghost" data-act="trip-edit" data-id="${t.id}">Editar</button><button class="btn danger" data-act="trip-del" data-id="${t.id}">Eliminar</button></div>`);
 }
 
+// ---------- gastos por categoría ----------
+function spendPeriods() {
+  const per = periods().filter((p) => p.movs.length);
+  const all = { label: 'Todo', movs: db.movements, from: db.movements[db.movements.length - 1]?.date };
+  return [...per.map((p) => ({ label: periodLabel(p), movs: p.movs, from: p.from, to: p.to })), all];
+}
+function catTotals(movs) {
+  const t = {};
+  for (const m of movs) if (m.amount < 0 && m.cat !== 'ahorro') { const c = (t[m.cat] ||= { total: 0, n: 0, movs: [] }); c.total -= m.amount; c.n++; c.movs.push(m); }
+  return t;
+}
+function spending() {
+  const head = `<header class="top"><h1>Gastos</h1></header>`;
+  if (!db.movements.length) return head + emptyState('Aún no hay gastos', 'Importa el extracto en PDF de tu banco para ver en qué se va tu dinero.');
+  const per = spendPeriods();
+  const i = Math.min(state.spPeriod || 0, per.length - 1);
+  const cur = catTotals(per[i].movs);
+  const prev = per[i + 1] && per[i + 1].label !== 'Todo' ? catTotals(per[i + 1].movs) : null;
+  const rows = Object.entries(cur).sort((a, b) => b[1].total - a[1].total);
+  const total = rows.reduce((a, [, v]) => a + v.total, 0);
+  const max = rows[0]?.[1].total || 1;
+  const chips = per.map((p, k) => `<button class="chip ${k === i ? 'on' : ''}" data-act="sp-period" data-i="${k}">${p.label}</button>`).join('');
+  const donut = rows.length ? (() => {
+    let acc = 0;
+    const stops = rows.map(([k, v]) => { const a = acc; acc += (v.total / total) * 100; return `${(CATS[k] || CATS.otros).color} ${a}% ${acc}%`; }).join(',');
+    return `<div class="donut" style="background:conic-gradient(${stops})"><div><b>${eur0(total)}</b><small>${rows.length} categorías</small></div></div>`;
+  })() : '';
+  const list = rows.map(([k, v]) => {
+    const c = CATS[k] || CATS.otros;
+    const pct = Math.round((v.total / total) * 100);
+    const d = prev ? v.total - (prev[k]?.total || 0) : null;
+    const diff = d == null || Math.abs(d) < 1 ? '' : ` · <span class="${d > 0 ? 'neg' : 'pos'}">${d > 0 ? '▲' : '▼'} ${eur0(Math.abs(d))}</span>`;
+    return `<button class="row" data-act="sp-cat" data-cat="${k}">
+      <span class="bubble" style="--c:${c.color}">${c.icon}</span>
+      <span class="cat-main"><span class="cat-top"><b>${c.name}</b><span>${eur(v.total)}</span></span>
+      <span class="bar thin"><i style="${barStyle(k, v.total, max, c.color)}"></i></span>
+      <small class="muted">${pct} % · ${v.n} ${v.n === 1 ? 'pago' : 'pagos'}${db.budgets[k] ? ` · tope ${eur0(db.budgets[k])}` : ''}${diff}</small></span><span class="chev">›</span></button>`;
+  }).join('');
+  return head + `<div class="chips scroll">${chips}</div>` +
+    (rows.length ? `<section class="card">${donut}</section><section class="card flush">${list}</section>
+      ${prev ? '<p class="hint">▲▼ comparado con el periodo anterior.</p>' : ''}
+      <button class="btn ghost wide" data-act="budgets">${Object.keys(db.budgets).length ? 'Cambiar topes de gasto' : 'Poner topes de gasto'}</button>`
+      : '<section class="card"><p class="hint">Sin gastos en este periodo.</p></section>');
+}
+function catDetail(cat) {
+  const per = spendPeriods();
+  const p = per[Math.min(state.spPeriod || 0, per.length - 1)];
+  const v = catTotals(p.movs)[cat];
+  if (!v) return;
+  const c = CATS[cat] || CATS.otros;
+  const shops = Object.entries(v.movs.reduce((a, m) => { (a[m.title] ||= { total: 0, n: 0 }); a[m.title].total -= m.amount; a[m.title].n++; return a; }, {})).sort((a, b) => b[1].total - a[1].total);
+  const b = db.budgets[cat];
+  openSheet(`<h2>${c.icon} ${c.name}</h2><p class="hint">${p.label}</p>
+    <div class="big center">${eur(v.total)}</div><p class="hint center">${v.n} ${v.n === 1 ? 'pago' : 'pagos'} · media ${eur(v.total / v.n)}${b ? ` · ${Math.round((v.total / b) * 100)} % del tope de ${eur0(b)}` : ''}</p>
+    ${b ? `<div class="bar"><i style="${barStyle(cat, v.total, b, c.color)}"></i></div>` : ''}
+    <h3>Dónde</h3>${shops.map(([k, s]) => ln(`${esc(k)}${s.n > 1 ? ` <small class="muted">× ${s.n}</small>` : ''}`, eur(s.total))).join('')}
+    <h3>Pagos</h3><div class="card flush inset">${v.movs.map((m) => movRow(m).replace('<small>', `<small>${short(m.date)} · `)).join('')}</div>
+    <div class="actions"><button class="btn ghost" data-act="cat-filter" data-cat="${cat}">Ver en Movimientos</button></div>`);
+}
+
 // Desglose de un lugar: en qué comercios y categorías se fue el dinero.
 function placeSheet(key) {
   const s = placeStats(db).find((x) => x.key === key);
@@ -697,7 +760,7 @@ if (Capacitor.isNativePlatform()) {
 }
 
 // ---------- render y eventos ----------
-const VIEWS = { home, movs, payroll, savings, trips };
+const VIEWS = { home, movs, spending, payroll, savings, trips };
 function render() {
   app.innerHTML = VIEWS[state.tab]();
   $('#tabs').innerHTML = TABS.map(([k, label]) => `<button class="${state.tab === k ? 'on' : ''}" data-act="tab" data-tab="${k}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg><span>${label}</span></button>`).join('');
@@ -708,9 +771,12 @@ const ACTIONS = {
   tab: (el) => { state.tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
   period: (el) => { state.period = +el.dataset.i; render(); },
   filter: (el) => { state.filter = el.dataset.f; render(); },
-  'cat-filter': (el) => { state.filter = el.dataset.cat; state.query = ''; state.tab = 'movs'; render(); window.scrollTo(0, 0); },
+  'cat-filter': (el) => {
+    if (!sheet.hidden) closeSheet(); state.filter = el.dataset.cat; state.query = ''; state.tab = 'movs'; render(); window.scrollTo(0, 0); },
   import: () => $('#file-pdf').click(),
   'home-ask': homeSheet,
+  'sp-period': (el) => { state.spPeriod = +el.dataset.i; render(); },
+  'sp-cat': (el) => catDetail(el.dataset.cat),
   place: (el) => placeSheet(el.dataset.key),
   'place-zone': (el) => {
     const k = el.dataset.key;
@@ -813,6 +879,13 @@ const ACTIONS = {
     toast('Apunte guardado.');
   },
   'mov-del': (el) => { db.movements = db.movements.filter((m) => m.id !== el.dataset.id); save(); closeSheet(); render(); toast('Apunte eliminado.'); },
+  'exit-ask': (el) => { db.settings.exitNoAsk = !el.checked; save(); },
+  'exit-yes': async () => {
+    if ($('#f-noask')?.checked) { db.settings.exitNoAsk = true; save(); }
+    closeSheet();
+    const { App } = await import('@capacitor/app');
+    App.exitApp();
+  },
   remind: async (el) => {
     db.settings.remind = el.dataset.on === '1';
     save();
@@ -918,3 +991,16 @@ document.addEventListener('visibilitychange', () => {
   refreshNative().then(() => takeNotis()).catch(console.error);
 });
 setInterval(() => { if (!document.hidden) takeNotis().catch(() => {}); }, 5000);
+
+// ---------- botón y gesto atrás (Android) ----------
+if (Capacitor.isNativePlatform()) {
+  import('@capacitor/app').then(({ App }) => App.addListener('backButton', () => {
+    if (!lockEl.hidden) return App.minimizeApp();
+    if (!sheet.hidden) return closeSheet();
+    if (state.tab !== 'home') { state.tab = 'home'; render(); window.scrollTo(0, 0); return; }
+    if (db.settings.exitNoAsk) return App.exitApp();
+    openSheet(`<h2>¿Salir de Mi Hucha?</h2>
+      <label class="check"><input id="f-noask" type="checkbox" /><span class="row-main"><b>No volver a preguntar</b><small>Puedes cambiarlo en Ajustes</small></span></label>
+      <div class="actions"><button class="btn ghost" data-act="close">Cancelar</button><button class="btn" data-act="exit-yes">Salir</button></div>`);
+  }));
+}

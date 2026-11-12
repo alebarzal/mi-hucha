@@ -8,6 +8,7 @@ Creada por [alebarzal](https://github.com/alebarzal).
 
 - **Importa PDF**: extractos de movimientos del banco y nóminas. También desde el menú "Compartir" de Android.
 - **Inicio**: saldo, cobrado y gastado desde la última nómina, y cuánto puedes gastar al día para cumplir tu objetivo de ahorro.
+- **Gastos**: desglose por categoría (gasolina, supermercado, ocio…) con gráfico, comparación con el periodo anterior y detalle por comercio.
 - **Movimientos**: buscador, filtros y categorías automáticas que aprenden de tus cambios.
 - **Topes de gasto** por categoría entre nómina y nómina.
 - **Nóminas**: desglose de bruto, Seguridad Social e IRPF, neto por hora y previsión orientativa de la renta.
@@ -15,6 +16,7 @@ Creada por [alebarzal](https://github.com/alebarzal).
 - **Viajes**: indicas dónde vives y la app separa los pagos de tu zona de los de fuera, propone viajes y muestra el gasto por lugar.
 - **Avisos del banco**: lee las notificaciones de la app del banco y apunta cada pago al momento como pendiente, hasta que llega el extracto.
 - **Apunte rápido** para el efectivo, **recordatorios** para importar y **bloqueo** con PIN y huella.
+- **Gesto atrás** que cierra menús y vuelve a Inicio, con confirmación opcional antes de salir.
 - **Copia de seguridad** exportable a un archivo.
 
 ## Tecnología

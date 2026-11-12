@@ -261,3 +261,11 @@ i.irpf { background: #d9577a; }
 
 .chev { color: var(--muted); font-size: 22px; margin-left: 2px; }
 .muted { color: var(--muted); }
+.donut { width: 190px; height: 190px; border-radius: 50%; margin: 6px auto; display: grid; place-items: center; }
+.donut > div { width: 132px; height: 132px; border-radius: 50%; background: var(--card); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.donut b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.donut small { color: var(--muted); font-size: 12.5px; }
+.row .cat-main small { font-size: 12.5px; }
+#tabs { padding-left: 2px; padding-right: 2px; }
+#tabs button { font-size: 10.5px; min-width: 0; }
+#tabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
