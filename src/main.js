@@ -899,6 +899,7 @@ const ACTIONS = {
   mov: (el) => movSheet(db.movements.find((m) => m.id === el.dataset.id)),
   setcat: (el) => {
     const m = db.movements.find((x) => x.id === el.dataset.id);
+    m.catSet = true;
     if (m.generic) { m.cat = el.dataset.cat; save(); closeSheet(); render(); return toast('Categoría cambiada.'); }
     const key = m.title.toLowerCase();
     let n = 0;

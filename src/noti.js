@@ -47,22 +47,25 @@ export function parseNoti({ title = '', text = '', time, pkg = '' }) {
   let k;
   if ((k = text.match(/^(.{2,60}?)\s+te ha(?:n)? enviado/i))) who = k[1];
   else if (generic) who = '';
-  else if ((k = all.match(/\ben\s+(?!tu\b|su\b|el\b|la\b|cuenta\b)([^.,;:()]{2,40}?)(?=\s+(?:con|por|el|a las|de \d|del \d)\b|[.,;:()]|$)/i))) who = k[1];
+  else if ((k = all.match(/\ben\s+(?!tu\b|su\b|el\b|la\b|cuenta\b|con\b|por\b)([^.,;:()]{2,40}?)(?=\s+(?:con|por|el|a las|de \d|del \d)\b|[.,;:()]|$)/i))) who = k[1];
   else if (income && (k = all.match(/\bde\s+(?!\d)([A-ZÁÉÍÓÚÑ][^.,;:()\d]{2,40}?)(?=\s+(?:por|con|concepto)\b|[.,;:()]|$)/))) who = k[1];
   else if (!income && (k = all.match(/\b(?:enviado a|a favor de|para|a)\s+([A-ZÁÉÍÓÚÑ][^.,;:()\d]{2,40}?)(?=\s+(?:por|con|concepto)\b|[.,;:()]|$)/))) who = k[1];
   if (/retirada|reintegro|cajero/i.test(all)) who = 'Retirada en cajero';
   else if (wallet && !who && !AMOUNT.test(title)) who = title;
-  who = titleCase(who.replace(/\s+/g, ' ').trim());
+  who = who.replace(/\s+/g, ' ').trim();
+  if (/^(con|tu|su)\b|tarjeta|\*\*\d/i.test(who)) who = '';
+  who = titleCase(who);
+  const card = /tarjeta/i.test(all) && !income;
   if (bizum && (k = text.match(/(?:eur|€|euros?)\s+por\s+(.+?)(?:\.\s|\.$|$)/i))) concept = k[1].trim();
 
   const stamp = time || Date.now();
   const d = new Date(stamp);
   const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const kind = bizum ? (income ? 'Bizum recibido' : 'Bizum enviado') : 'Aviso del banco';
+  const kind = bizum ? (income ? 'Bizum recibido' : 'Bizum enviado') : card ? 'Pago con tarjeta' : 'Aviso del banco';
   return {
     id: `n-${stamp}-${Math.round(value * 100)}`,
     date, valueDate: date,
-    title: who || (bizum ? 'Bizum' : income ? 'Ingreso' : 'Pago'),
+    title: who || (bizum ? 'Bizum' : card ? 'Pago con tarjeta' : income ? 'Ingreso' : 'Pago'),
     desc: bizum ? (income ? `Bizum De ${who}` : `Bizum A Favor De ${who}`) : all,
     raw: all.slice(0, 200),
     note: `${kind}${concept ? ' · ' + concept : ''} · pendiente de extracto`,
@@ -70,6 +73,8 @@ export function parseNoti({ title = '', text = '', time, pkg = '' }) {
     balance: null,
     pending: true,
     generic: generic || !who,
+    // Cuánta información trae el aviso: de dos avisos del mismo pago se queda el de mayor puntuación.
+    score: (who ? 4 : 0) + (bizum || card ? 2 : 0) + (concept ? 1 : 0),
     time: stamp,
   };
 }

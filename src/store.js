@@ -51,9 +51,19 @@ export let db = load();
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...empty(), ...JSON.parse(raw) };
+    if (raw) return fixPending({ ...empty(), ...JSON.parse(raw) });
   } catch { /* almacenamiento no disponible */ }
   return empty();
+}
+
+// Avisos guardados por versiones anteriores con "con tu tarjeta" como comercio.
+function fixPending(d) {
+  for (const m of d.movements) {
+    if (m.pending && /^(con tu tarjeta|tu tarjeta)/i.test(m.title)) {
+      Object.assign(m, { title: 'Pago con tarjeta', note: 'Pago con tarjeta · pendiente de extracto', generic: true, score: 2 });
+    }
+  }
+  return d;
 }
 
 export function save() {
@@ -101,8 +111,8 @@ export function addPending(m) {
   const dup = db.movements.find((x) => x.id === m.id || (x.pending && Math.abs(x.amount - m.amount) < 0.005 && Math.abs(x.time - m.time) < 180000));
   if (dup) {
     // El banco manda a veces dos avisos del mismo movimiento: nos quedamos con el más detallado.
-    if (dup.id === m.id || !dup.generic || m.generic) return false;
-    Object.assign(dup, { title: m.title, desc: m.desc, note: m.note, raw: m.raw, generic: false, cat: guessCat(m, db.rules) });
+    if (dup.id === m.id || (m.score ?? 0) <= (dup.score ?? (dup.generic ? 0 : 4))) return false;
+    Object.assign(dup, { title: m.title, desc: m.desc, note: m.note, raw: m.raw, generic: m.generic, score: m.score, cat: dup.catSet ? dup.cat : guessCat(m, db.rules) });
     return 'merged';
   }
   db.movements.push({ ...m, cat: guessCat(m, db.rules), ord: m.time * 1000 });
