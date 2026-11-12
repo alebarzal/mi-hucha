@@ -24,7 +24,13 @@ const pretty = (s) => s.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase(
 const cache = new Map();
 // { key, name, country, countryName, online } o null si el movimiento no trae lugar.
 export function placeOf(m) {
-  if (!m || m.amount >= 0 || !m.desc) return null;
+  if (!m || m.amount >= 0) return null;
+  if (m.pending && m.geo?.locality) {
+    const code = String(m.geo.country || 'ES').toUpperCase();
+    const name = FULL_NAMES[norm(m.geo.locality)] || m.geo.locality;
+    return { key: norm(name), name, country: code, countryName: COUNTRIES[code] || code, online: false };
+  }
+  if (!m.desc) return null;
   if (cache.has(m.desc)) return cache.get(m.desc);
   let info = null;
   const k = m.desc.match(/^(Pago Movil En|Compra Internet En|Compra En|Compra(?! Bizum)) (.+)$/i);

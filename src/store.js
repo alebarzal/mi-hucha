@@ -110,9 +110,10 @@ export function addManual({ date, title, amount, cat }) {
 export function addPending(m) {
   const dup = db.movements.find((x) => x.id === m.id || (x.pending && Math.abs(x.amount - m.amount) < 0.005 && Math.abs(x.time - m.time) < 180000));
   if (dup) {
+    if (m.geo && !dup.geo) dup.geo = m.geo;
     // El banco manda a veces dos avisos del mismo movimiento: nos quedamos con el más detallado.
     if (dup.id === m.id || (m.score ?? 0) <= (dup.score ?? (dup.generic ? 0 : 4))) return false;
-    Object.assign(dup, { title: m.title, desc: m.desc, note: m.note, raw: m.raw, generic: m.generic, score: m.score, cat: dup.catSet ? dup.cat : guessCat(m, db.rules) });
+    Object.assign(dup, { title: m.title, desc: m.desc, note: m.note, raw: m.raw, generic: m.generic, score: m.score, geo: dup.geo || m.geo, cat: dup.catSet ? dup.cat : guessCat(m, db.rules) });
     return 'merged';
   }
   db.movements.push({ ...m, cat: guessCat(m, db.rules), ord: m.time * 1000 });

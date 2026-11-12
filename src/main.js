@@ -70,7 +70,7 @@ function movRow(m) {
   const c = CATS[m.cat] || CATS.otros;
   return `<button class="row" data-act="mov" data-id="${esc(m.id)}">
     <span class="bubble" style="--c:${c.color}">${c.icon}</span>
-    <span class="row-main"><b>${esc(m.title)}</b><small>${esc(m.note || c.name)}</small></span>
+    <span class="row-main"><b>${esc(m.title)}</b><small>${m.pending && m.geo?.locality ? '📍 ' + esc(m.geo.locality) + ' · ' : ''}${esc(m.note || c.name)}</small></span>
     <span class="amt ${m.amount > 0 ? 'pos' : ''}">${signed(m.amount)}</span>
   </button>`;
 }
@@ -310,6 +310,16 @@ function goalSheet(g) {
     <div class="actions"><button class="btn ghost" data-act="goal-edit" data-id="${g.id}">Editar</button><button class="btn danger" data-act="goal-del" data-id="${g.id}">Eliminar</button></div>`);
 }
 
+// ---------- ubicación de un aviso ----------
+function geoBlock(g) {
+  const name = [g.address, g.locality].filter(Boolean).join(', ');
+  const acc = g.acc ? ' · precisión ~' + Math.round(g.acc) + ' m' : '';
+  const old = g.age > 120 ? ' · posición de hace ' + Math.round(g.age / 60) + ' min' : '';
+  return `<p class="tip">📍 <b>${name ? esc(name) : 'Ubicación guardada'}</b>${acc}${old}<br />
+    <a class="maplink" href="https://www.google.com/maps?q=${g.lat},${g.lon}" target="_blank" rel="noopener">Ver en el mapa</a><br />
+    <small class="muted">Es dónde estabas cuando llegó el aviso; no tiene por qué ser el comercio.</small></p>`;
+}
+
 // ---------- categoría de un movimiento ----------
 function movSheet(m) {
   const c = CATS[m.cat] || CATS.otros;
@@ -318,6 +328,7 @@ function movSheet(m) {
     <div class="big center ${m.amount > 0 ? 'pos' : ''}">${signed(m.amount)}</div>
     <p class="hint center">${c.icon} ${c.name}${m.balance != null ? ' · saldo después ' + eur(m.balance) : ''}</p>
     ${m.raw ? `<p class="tip">🔔 «${esc(m.raw)}»</p>` : ''}
+    ${m.geo ? geoBlock(m.geo) : ''}
     ${m.manual || m.pending ? `<div class="actions"><button class="btn danger" data-act="mov-del" data-id="${esc(m.id)}">${m.pending ? 'Descartar aviso' : 'Eliminar apunte'}</button></div>` : ''}
     <h3>Cambiar categoría</h3>
     <div class="catgrid">${options.map(([k, v]) => `<button class="catopt ${k === m.cat ? 'on' : ''}" data-act="setcat" data-id="${esc(m.id)}" data-cat="${k}"><span>${v.icon}</span>${v.name}</button>`).join('')}</div>
@@ -344,6 +355,8 @@ function settingsSheet() {
       <div class="actions"><button class="btn ghost" data-act="noti-perm">Dar permiso</button></div>
       <p class="hint">Si Android muestra «Mi Hucha» en gris: Ajustes del móvil → Aplicaciones → Mi Hucha → menú ⋮ → «Permitir ajustes restringidos», y vuelve a intentarlo.</p>`}
     ${notiDiag()}
+    <h3>Ubicación de los pagos</h3>
+    ${geoSection()}
     <h3>Botón atrás</h3>
     <label class="check"><input type="checkbox" data-act="exit-ask" ${db.settings.exitNoAsk ? '' : 'checked'} /><span class="row-main"><b>Preguntar antes de salir</b><small>Al ir atrás desde Inicio</small></span></label>
     <h3>Recordatorios</h3>
@@ -495,7 +508,7 @@ function taxSheet() {
 
 // ---------- bloqueo con PIN y huella ----------
 const lockEl = $('#lock');
-const native = { bio: false, noti: false };
+const native = { bio: false, noti: false, geo: {} };
 const Bio = Capacitor.isNativePlatform() ? registerPlugin('Biometric') : null;
 const Noti = Capacitor.isNativePlatform() ? registerPlugin('BankNoti') : null;
 let pinBuf = '';
@@ -533,6 +546,7 @@ async function refreshNative() {
   native.noti = !!st.enabled;
   native.seen = st.seen || 0;
   native.lastSeen = st.lastSeen || 0;
+  native.geo = await Noti.geoStatus().catch(() => ({}));
 }
 
 // ---------- avisos del banco ----------
@@ -541,24 +555,55 @@ function notiDiag() {
   if (!Noti || !native.noti) return '';
   const log = db.notiLog || [];
   return `<p class="hint"><b>Diagnóstico.</b> Notificaciones de apps de banco vistas: ${native.seen}${native.lastSeen ? ' (última: ' + hhmm(native.lastSeen) + ')' : ''}. ${native.seen ? '' : 'Si sigue en 0 después de recibir un aviso del banco, Android no se los está pasando a la app.'}</p>
-    ${log.map((l) => `<div class="diag"><small>${hhmm(l.time)} · <b>${esc(l.res)}</b></small><span>${esc(l.text)}</span></div>`).join('')}`;
+    ${log.map((l) => `<div class="diag"><small>${hhmm(l.time)} · <b>${esc(l.res)}</b>${l.geo ? ' · 📍 ' + esc(l.geo) : ''}</small><span>${esc(l.text)}</span></div>`).join('')}`;
 }
 async function takeNotis() {
   if (!Noti) return;
   const { items } = await Noti.take();
   let n = 0;
-  if (!items?.length) return;
+  if (!items?.length) return nameGeos();
   const log = db.notiLog || [];
   for (const it of items) {
     const m = parseNoti(it);
+    if (!m.skip && it.lat != null) m.geo = { lat: it.lat, lon: it.lon, acc: it.acc, age: it.locAge, fresh: it.fresh };
     const res = m.skip ? 'ignorado: ' + m.skip : addPending(m);
     if (res === 'added') n++;
-    log.unshift({ time: it.time, text: (it.title + ' · ' + it.text).slice(0, 160), res: res === 'added' ? 'apuntado' : res === 'merged' ? 'unido a otro aviso' : res || 'repetido' });
+    log.unshift({ time: it.time, text: (it.title + ' · ' + it.text).slice(0, 160), res: res === 'added' ? 'apuntado' : res === 'merged' ? 'unido a otro aviso' : res || 'repetido', geo: it.geoState });
   }
   db.notiLog = log.slice(0, 12);
   save(); render();
+  nameGeos();
   if (!n) return;
   toast(n === 1 ? '1 aviso del banco añadido.' : `${n} avisos del banco añadidos.`);
+}
+
+// Pone nombre (ciudad y calle) a las ubicaciones guardadas; si no hay red, se reintenta al abrir.
+async function nameGeos() {
+  if (!Noti) return;
+  let changed = false;
+  let left = 6;
+  for (const m of db.movements) {
+    if (left <= 0) break;
+    if (!m.pending || !m.geo || m.geo.done || (m.geo.tries || 0) >= 5) continue;
+    left--;
+    m.geo.tries = (m.geo.tries || 0) + 1;
+    const r = await Noti.geocode({ lat: m.geo.lat, lon: m.geo.lon }).catch(() => ({}));
+    if (r.locality || r.address) { Object.assign(m.geo, { locality: r.locality || '', address: r.address || '', country: r.country || 'ES', done: true }); changed = true; }
+  }
+  if (changed) { save(); render(); } else if (left < 6) save();
+}
+
+function geoSection() {
+  if (!Noti) return '<p class="hint">Disponible en la app del móvil: guarda dónde estabas cuando llega un aviso del banco.</p>';
+  const g = native.geo || {};
+  let state = '';
+  if (g.on) {
+    if (!g.fine) state = '<p class="hint">Falta el permiso de ubicación.</p><div class="actions"><button class="btn ghost" data-act="geo-perm">Dar permiso de ubicación</button></div>';
+    else if (!g.background) state = '<p class="hint">Falta un paso: para leer tu posición cuando la app está cerrada, Android pide «Permitir todo el tiempo». Pulsa el botón: si Android abre los ajustes de la app, entra en Permisos → Ubicación y elige «Permitir todo el tiempo».</p><div class="actions"><button class="btn ghost" data-act="geo-bg">Permitir «todo el tiempo»</button><button class="btn ghost" data-act="app-settings">Abrir ajustes</button></div>';
+    else state = '<p class="hint">Activada ✓ Cuando llegue un aviso con importe, guardo dónde estás.</p>';
+  }
+  return `<label class="check"><input type="checkbox" data-act="geo-toggle" ${g.on ? 'checked' : ''} /><span class="row-main"><b>Guardar dónde estoy al llegar un aviso</b><small>Solo en ese instante, no sigo tu ruta</small></span></label>${state}
+    <p class="hint">La ubicación se guarda solo en el móvil. Para convertirla en ciudad y calle, Android puede consultar el servicio de direcciones de Google, que recibiría esas coordenadas.</p>`;
 }
 
 // ---------- lugares y viajes ----------
@@ -774,6 +819,20 @@ const ACTIONS = {
   'cat-filter': (el) => {
     if (!sheet.hidden) closeSheet(); state.filter = el.dataset.cat; state.query = ''; state.tab = 'movs'; render(); window.scrollTo(0, 0); },
   import: () => $('#file-pdf').click(),
+  'geo-toggle': async (el) => {
+    const on = el.checked;
+    await Noti.geoSet({ on }).catch(() => {});
+    native.geo = on ? await Noti.geoRequest().catch(() => ({})) : await Noti.geoStatus().catch(() => ({}));
+    settingsSheet();
+  },
+  'geo-perm': async () => { native.geo = await Noti.geoRequest().catch(() => ({})); settingsSheet(); },
+  'geo-bg': async () => {
+    native.geo = await Noti.geoRequestBackground().catch(() => native.geo || {});
+    // Android reciente no muestra diálogo para «todo el tiempo»: hay que elegirlo en los ajustes de la app.
+    if (!native.geo.background) { await Noti.openAppSettings().catch(() => {}); toast('Entra en Permisos → Ubicación → «Permitir todo el tiempo».'); }
+    settingsSheet();
+  },
+  'app-settings': () => Noti.openAppSettings().catch(() => {}),
   'home-ask': homeSheet,
   'sp-period': (el) => { state.spPeriod = +el.dataset.i; render(); },
   'sp-cat': (el) => catDetail(el.dataset.cat),

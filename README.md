@@ -14,7 +14,8 @@ Creada por [alebarzal](https://github.com/alebarzal).
 - **Nóminas**: desglose de bruto, Seguridad Social e IRPF, neto por hora y previsión orientativa de la renta.
 - **Ahorro**: objetivos con aportaciones y lo que ahorras en cada periodo.
 - **Viajes**: indicas dónde vives y la app separa los pagos de tu zona de los de fuera, propone viajes y muestra el gasto por lugar.
-- **Avisos del banco**: lee las notificaciones de la app del banco y apunta cada pago al momento como pendiente, hasta que llega el extracto.
+- **Avisos del banco**: lee las notificaciones de la app del banco y de Google Wallet o Samsung Wallet (con el nombre del comercio) y apunta cada pago al momento como pendiente, hasta que llega el extracto.
+- **Ubicación de los pagos** (opcional): guarda dónde estabas al llegar cada aviso, con calle, ciudad y enlace al mapa. Solo se captura en el instante del aviso y se guarda en el móvil.
 - **Apunte rápido** para el efectivo, **recordatorios** para importar y **bloqueo** con PIN y huella.
 - **Gesto atrás** que cierra menús y vuelve a Inicio, con confirmación opcional antes de salir.
 - **Copia de seguridad** exportable a un archivo.

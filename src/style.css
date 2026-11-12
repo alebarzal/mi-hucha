@@ -269,3 +269,5 @@ i.irpf { background: #d9577a; }
 #tabs { padding-left: 2px; padding-right: 2px; }
 #tabs button { font-size: 10.5px; min-width: 0; }
 #tabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+.maplink { color: var(--brand-2); font-weight: 700; }

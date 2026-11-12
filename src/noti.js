@@ -51,7 +51,12 @@ export function parseNoti({ title = '', text = '', time, pkg = '' }) {
   else if (income && (k = all.match(/\bde\s+(?!\d)([A-ZÁÉÍÓÚÑ][^.,;:()\d]{2,40}?)(?=\s+(?:por|con|concepto)\b|[.,;:()]|$)/))) who = k[1];
   else if (!income && (k = all.match(/\b(?:enviado a|a favor de|para|a)\s+([A-ZÁÉÍÓÚÑ][^.,;:()\d]{2,40}?)(?=\s+(?:por|con|concepto)\b|[.,;:()]|$)/))) who = k[1];
   if (/retirada|reintegro|cajero/i.test(all)) who = 'Retirada en cajero';
-  else if (wallet && !who && !AMOUNT.test(title)) who = title;
+  else if (wallet) {
+    const generic = /^(pago|compra|tarjeta|wallet|google|samsung|transacci|has |¡)/i;
+    const pre = tidy(text.split(AMOUNT)[0]).replace(/[·\-–:|]+$/, '').trim();
+    const cand = title && !AMOUNT.test(title) && !generic.test(title) ? title : pre;
+    if (cand && cand.length > 2 && !AMOUNT.test(cand) && !generic.test(cand)) who = cand;
+  }
   who = who.replace(/\s+/g, ' ').trim();
   if (/^(con|tu|su)\b|tarjeta|\*\*\d/i.test(who)) who = '';
   who = titleCase(who);
