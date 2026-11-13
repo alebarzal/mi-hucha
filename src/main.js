@@ -3,6 +3,7 @@ import { CATS, db, save, mergeBank, addManual, editMov, addPending, budgetUse, s
 import { detectType, parseBank, parsePayslip } from './parser.js';
 import { forecast, LIMIT_ONE_PAYER, LIMIT_TWO_PAYERS, SECOND_PAYER_MIN } from './tax.js';
 import { parseNoti } from './noti.js';
+import { CHANGELOG } from './changelog.js';
 import { placeOf, placeStats, suggestHome, detectTrips, tripSummary, tripName, norm } from './trips.js';
 
 const $ = (s) => document.querySelector(s);
@@ -420,6 +421,7 @@ function settingsSheet() {
     <p class="hint">${db.settings.remind ? 'Activados: te aviso a los 15 días sin importar y al día siguiente de cobrar.' : 'Desactivados.'}</p>
     <div class="actions"><button class="btn ghost" data-act="remind" data-on="${db.settings.remind ? 0 : 1}">${db.settings.remind ? 'Desactivar avisos' : 'Activar avisos'}</button></div>
     <h3>Actualizar</h3>
+    <button class="row news-link" data-act="news"><span class="bubble" style="--c:#1f9d6b">📰</span><span class="row-main"><b>Novedades</b><small>Lo nuevo de la versión ${__APP_VERSION__} y de las anteriores</small></span><span class="chev">›</span></button>
     <p class="hint">Versión ${__APP_VERSION__}${__BUILD_SHA__ ? ` · ${__BUILD_SHA__.slice(0, 7)}` : ''}. Descarga la última versión subida a GitHub y la instala encima, sin perder tus datos.</p>
     <label class="check"><input type="checkbox" data-act="upd-auto" ${db.settings.updAuto === false ? '' : 'checked'} /><span class="row-main"><b>Avisarme de versiones nuevas</b><small>Lo comprueba al abrir la app, como mucho dos veces al día</small></span></label>
     <div class="actions"><button class="btn ghost" data-act="update">Buscar actualización</button></div>
@@ -678,12 +680,22 @@ async function sha(salt, pin) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin));
   return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
 }
+// Huella dactilar dibujada con trazos (sigue el color del tema).
+const FINGERPRINT = `<svg viewBox="0 0 24 24" aria-hidden="true">
+  <path d="M6.300 5.200A8.400 8.400 0 0 1 12 3c2.200 0 4.200.8 5.700 2.200"/>
+  <path d="M3.600 10.200A8.600 8.600 0 0 1 5 7.400M20.400 10.400a8.700 8.700 0 0 0-1.300-3"/>
+  <path d="M5.800 17.600A11 11 0 0 1 5 13.400a7 7 0 0 1 14 0v.6"/>
+  <path d="M8.500 20a9.600 9.600 0 0 1-1.200-5.800 4.700 4.700 0 0 1 9.400.2c0 1.900-.2 3.700-.7 5.400"/>
+  <path d="M12 13.300c0 2.900.5 5.300 1.400 7.400"/>
+  <path d="M18.700 17.600c.2-.9.300-1.800.300-2.800"/>
+  <path d="M10.200 21.200c-.6-1.400-1-3.300-1-6.600a2.800 2.800 0 0 1 5.600 0c0 1.200.1 2.300.3 3.300"/>
+</svg>`;
 function drawLock(msg) {
   const bio = native.bio && db.settings.lock?.bio;
-  lockEl.innerHTML = `<div class="lock-box"><div class="lock-ico">🔒</div><h2>Mi Hucha</h2><p class="hint">${msg || 'Escribe tu PIN'}</p>
+  lockEl.innerHTML = `<div class="lock-box"><div class="lock-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.500" y="10.500" width="15" height="10.500" rx="2.500"/><path d="M8 10.500V7.500a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.500" r="1.300" class="fill"/></svg></div><h2>Mi Hucha</h2><p class="hint">${msg || 'Escribe tu PIN'}</p>
     <div class="dots">${[0, 1, 2, 3].map((i) => `<i class="${i < pinBuf.length ? 'on' : ''}"></i>`).join('')}</div>
     <div class="keys">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-act="key" data-k="${n}">${n}</button>`).join('')}
-    <button data-act="bio" aria-label="Usar huella" ${bio ? '' : 'style="visibility:hidden"'}>👆</button><button data-act="key" data-k="0">0</button><button data-act="key" data-k="del" aria-label="Borrar">⌫</button></div></div>`;
+    <button class="key-ico bio" data-act="bio" aria-label="Usar huella" ${bio ? '' : 'style="visibility:hidden"'}>${FINGERPRINT}</button><button data-act="key" data-k="0">0</button><button class="key-ico" data-act="key" data-k="del" aria-label="Borrar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10.500A1.500 1.500 0 0 1 21 6.500v11a1.500 1.500 0 0 1-1.500 1.500H9l-6-7z"/><path d="M12.500 9.500l5 5M17.500 9.500l-5 5"/></svg></button></div></div>`;
 }
 function lockNow() {
   if (!db.settings.lock) return;
@@ -694,6 +706,7 @@ function lockNow() {
 function unlock() {
   lockEl.hidden = true;
   lockEl.innerHTML = '';
+  setTimeout(maybeShowNews, 300);
 }
 async function tryBio() {
   if (lockEl.hidden || !Bio || !native.bio || !db.settings.lock?.bio) return;
@@ -1001,6 +1014,28 @@ async function notifyBudget(k, u, level, i) {
   } catch (e) { console.error(e); }
 }
 
+// ---------- novedades ----------
+const fmtDay = (iso) => { const d = toDate(iso); return `${d.getDate()} de ${MES_L[d.getMonth()]}`; };
+function newsSheet() {
+  const [cur, ...old] = CHANGELOG;
+  const item = ([ico, t, d]) => `<div class="news-item"><span class="news-ico">${ico}</span><span class="row-main"><b>${t}</b><small>${d}</small></span></div>`;
+  openSheet(`<div class="news-head"><span class="tag">Versión ${cur.v}</span>${cur.date ? `<small>${fmtDay(cur.date)}` + '</small>' : ''}</div>
+    <h2>Novedades</h2>
+    <div class="news-list">${cur.items.map(item).join('')}</div>
+    <details class="news-old"><summary>Versiones anteriores</summary>
+      ${old.map((r) => `<h3>Versión ${r.v}</h3><div class="news-list">${r.items.map(item).join('')}</div>`).join('')}
+    </details>
+    <div class="actions"><button class="btn" data-act="close">Entendido</button></div>`);
+}
+// La primera vez que se abre una versión nueva (y solo si ya usabas la app) enseña sus novedades.
+function maybeShowNews() {
+  if (db.settings.seenVersion === __APP_VERSION__ || !lockEl.hidden) return;
+  const had = db.movements.length || db.payslips.length || db.goals.length;
+  db.settings.seenVersion = __APP_VERSION__;
+  save();
+  if (had && sheet.hidden) newsSheet();
+}
+
 // Tema (automático, claro u oscuro) e importes ocultos.
 function applyLook() {
   const t = db.settings.theme;
@@ -1191,6 +1226,7 @@ const ACTIONS = {
     render();
   },
   settings: settingsSheet,
+  news: newsSheet,
   mov: (el) => movSheet(db.movements.find((m) => m.id === el.dataset.id)),
   setcat: (el) => {
     const id = el.dataset.id, cat = el.dataset.cat;
@@ -1286,6 +1322,7 @@ save();
 applyLook();
 lockNow();
 render();
+maybeShowNews();
 autoCheckUpdate();
 scheduleReminders();
 refreshNative().then(() => { if (!lockEl.hidden) drawLock(); tryBio(); takeNotis().catch(console.error); });
