@@ -18,6 +18,7 @@ Creada por [alebarzal](https://github.com/alebarzal).
 - **Avisos del banco**: lee las notificaciones de la app del banco y de Google Wallet o Samsung Wallet (con el nombre del comercio) y apunta cada pago al momento como pendiente, hasta que llega el extracto.
 - **Ubicación de los pagos** (opcional): guarda dónde estabas al llegar cada aviso, con calle, ciudad y enlace al mapa. Solo se captura en el instante del aviso y se guarda en el móvil.
 - **Apunte rápido** para el efectivo, **recordatorios** para importar y **bloqueo** con PIN y huella.
+- **Comodidad**: deshacer al borrar o cambiar de categoría, editar apuntes y avisos, sugerencias en el apunte rápido, ocultar importes, tema claro u oscuro, aviso de copia pendiente y de versión nueva.
 - **Gesto atrás** que cierra menús y vuelve a Inicio, con confirmación opcional antes de salir.
 - **Copia de seguridad** exportable a un archivo.
 - **Actualizar desde la app**: en cada push a `main`, GitHub Actions compila el APK y lo publica en la versión `latest`; el botón "Buscar actualización" de Ajustes lo descarga e instala encima. Para firmarlo con la misma clave que la app instalada, el workflow usa el secreto `DEBUG_KEYSTORE` (el `debug.keystore` en base64).

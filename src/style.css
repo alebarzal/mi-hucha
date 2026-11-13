@@ -15,7 +15,7 @@
   --r: 22px;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0c1210;
     --card: #161f1b;
     --ink: #eaf1ed;
@@ -30,6 +30,21 @@
     --warn-ink: #f1d98a;
     --shadow: none;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1210;
+  --card: #161f1b;
+  --ink: #eaf1ed;
+  --muted: #93a19a;
+  --line: #24302b;
+  --brand: #0f6b4b;
+  --brand-2: #1aa678;
+  --soft: #15301f;
+  --pos: #4fd19c;
+  --neg: #f08a7c;
+  --warn-bg: #2e2710;
+  --warn-ink: #f1d98a;
+  --shadow: none;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { -webkit-text-size-adjust: 100%; }
@@ -306,3 +321,11 @@ i.irpf { background: #d9577a; }
 @keyframes upd-stripes { to { background-position: 22.6px 0; } }
 @keyframes upd-indet { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
 @media (prefers-reduced-motion: reduce) { .upd-icon, .upd-fill::after, .upd-card { animation: none; } .upd-track.indet .upd-fill { animation-duration: 3s; } }
+
+/* 1.11: detalles de comodidad */
+.top-btns { display: flex; gap: 8px; }
+#toast button { margin-left: 10px; padding: 4px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.16); color: #8fe3c0; font-weight: 800; }
+.seg.three { grid-template-columns: 1fr 1fr 1fr; }
+.sugs { margin-top: 2px; }
+.hide-money :is(.big, .amt, .stats b, .tile b, .tag, .val, .cat-top > span, .goal-sub, .pct, .pay-top b, .pay-sub, .line b, .tip b, .hint b, .budget-alert span, .sugs .chip) { filter: blur(7px); }
+.hide-money .hero .big { filter: blur(11px); }

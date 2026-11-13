@@ -1,5 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { CATS, db, save, mergeBank, addManual, addPending, budgetUse, setKeywords, kwMatch, replaceDb, resetDb, periods, paydays, nextPayday, goalsTotal, todayIso, toDate, dayDiff } from './store.js';
+import { CATS, db, save, mergeBank, addManual, editMov, addPending, budgetUse, setKeywords, kwMatch, replaceDb, resetDb, periods, paydays, nextPayday, goalsTotal, todayIso, toDate, dayDiff } from './store.js';
 import { detectType, parseBank, parsePayslip } from './parser.js';
 import { forecast, LIMIT_ONE_PAYER, LIMIT_TWO_PAYERS, SECOND_PAYER_MIN } from './tax.js';
 import { parseNoti } from './noti.js';
@@ -28,14 +28,25 @@ const periodLabel = (p) => (!p.pay ? (p.to ? `Antes del ${short(p.to)}` : 'Todo'
 const slipFor = (m) => db.payslips.find((p) => Math.abs(p.net - m.amount) < 0.01);
 const slipMonth = (p) => { const d = toDate(p.from); return `${MES_L[d.getMonth()]} ${d.getFullYear()}`; };
 
-let toastTimer;
-function toast(msg) {
+let toastTimer, undoFn = null;
+function toast(msg, undo) {
   const t = $('#toast');
   t.textContent = msg;
+  undoFn = undo || null;
+  if (undo) t.insertAdjacentHTML('beforeend', ' <button data-act="undo">Deshacer</button>');
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 3200);
+  toastTimer = setTimeout(() => { t.hidden = true; undoFn = null; }, undo ? 6000 : 3200);
 }
+// Hace un cambio que se puede deshacer desde el aviso durante unos segundos.
+function withUndo(msg, change) {
+  const snap = JSON.stringify(db);
+  change();
+  save(); render();
+  toast(msg, () => { replaceDb(JSON.parse(snap)); render(); toast('Deshecho.'); });
+}
+const plain = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const daysAgo = (iso) => { const n = dayDiff(iso, todayIso()); return n <= 0 ? 'hoy' : n === 1 ? 'ayer' : `hace ${n} días`; };
 
 // ---------- hoja inferior ----------
 function openSheet(html) {
@@ -82,7 +93,8 @@ function home() {
   const per = periods();
   const name = (db.account.holder || '').trim().split(/\s+/).pop() || '';
   const head = `<header class="top"><div><p class="hi">${name ? 'Hola, ' + esc(name) : 'Bienvenido'}</p><h1>Mi Hucha</h1></div>
-    <button class="icon-btn" data-act="settings" aria-label="Ajustes"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.400 15a1.700 1.700 0 0 0 .300 1.800l.100.100a2 2 0 1 1-2.800 2.800l-.100-.100a1.700 1.700 0 0 0-2.800 1.200V21a2 2 0 1 1-4 0v-.100a1.700 1.700 0 0 0-2.900-1.200l-.100.100a2 2 0 1 1-2.800-2.800l.100-.100A1.700 1.700 0 0 0 3 14H3a2 2 0 1 1 0-4h.100a1.700 1.700 0 0 0 1.200-2.900l-.100-.100a2 2 0 1 1 2.800-2.800l.100.100A1.700 1.700 0 0 0 10 3V3a2 2 0 1 1 4 0v.100a1.700 1.700 0 0 0 2.900 1.200l.100-.100a2 2 0 1 1 2.800 2.800l-.100.100A1.700 1.700 0 0 0 21 10h0a2 2 0 1 1 0 4h-.100a1.700 1.700 0 0 0-1.500 1z"/></svg></button></header>`;
+    <div class="top-btns"><button class="icon-btn" data-act="hide-money" aria-label="${db.settings.hideMoney ? 'Mostrar importes' : 'Ocultar importes'}"><svg viewBox="0 0 24 24"><path d="M2 12s3.600-7 10-7 10 7 10 7-3.600 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>${db.settings.hideMoney ? '<path d="M4 4l16 16"/>' : ''}</svg></button>
+    <button class="icon-btn" data-act="settings" aria-label="Ajustes"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.400 15a1.700 1.700 0 0 0 .300 1.800l.100.100a2 2 0 1 1-2.800 2.800l-.100-.100a1.700 1.700 0 0 0-2.800 1.200V21a2 2 0 1 1-4 0v-.100a1.700 1.700 0 0 0-2.900-1.200l-.100.100a2 2 0 1 1-2.800-2.800l.100-.100A1.700 1.700 0 0 0 3 14H3a2 2 0 1 1 0-4h.100a1.700 1.700 0 0 0 1.200-2.900l-.100-.100a2 2 0 1 1 2.800-2.800l.100.100A1.700 1.700 0 0 0 10 3V3a2 2 0 1 1 4 0v.100a1.700 1.700 0 0 0 2.900 1.200l.100-.100a2 2 0 1 1 2.800 2.800l-.100.100A1.700 1.700 0 0 0 21 10h0a2 2 0 1 1 0 4h-.100a1.700 1.700 0 0 0-1.500 1z"/></svg></button></div></header>`;
   if (!db.movements.length) return head + emptyState('Empieza importando un PDF', 'Sube el extracto de tu banco o una nómina y la app lo ordena todo por ti.');
 
   const hero = `<section class="hero">
@@ -153,22 +165,30 @@ function home() {
     return `<button class="note budget-alert ${u.r >= 1 ? 'over' : ''}" data-act="cat-filter" data-cat="${k}"><b>${c.icon} ${u.r >= 1 ? 'Te has pasado del tope de' : 'Cerca del tope de'} ${c.name}</b>
       <span>${eur(u.spent)} de ${eur0(u.b)} ${u.monthly ? 'este mes' : 'desde la última nómina'} · ${Math.round(u.r * 100)} %</span></button>`;
   }).join('');
-  return head + hero + remind + askHome + alerts + now + spend + last;
+  const upd = db.settings.updAvail && db.settings.updAvail !== __BUILD_SHA__ ? `<section class="card"><div class="card-head"><h2>⬆️ Hay una versión nueva</h2></div>
+    <p class="hint">${esc(db.settings.updNotes || 'Se instala encima y tus datos se mantienen.')}</p>
+    <div class="actions"><button class="btn" data-act="update">Actualizar ahora</button></div></section>` : '';
+  const lb = db.settings.lastBackup;
+  const snoozed = db.settings.backupSnooze && dayDiff(db.settings.backupSnooze, todayIso()) < 14;
+  const backup = db.movements.length >= 20 && !snoozed && (!lb || dayDiff(lb, todayIso()) > 30) ? `<section class="card"><div class="card-head"><h2>💾 ${lb ? 'Toca hacer una copia' : 'Aún no tienes copia de seguridad'}</h2></div>
+    <p class="hint">${lb ? `La última es de ${daysAgo(lb)}.` : 'Tus datos solo están en este móvil.'} Guárdala en Drive o envíatela por correo para no perder nada.</p>
+    <div class="actions"><button class="btn" data-act="export">Hacer copia</button><button class="btn ghost" data-act="backup-later">Más tarde</button></div></section>` : '';
+  return head + hero + upd + remind + askHome + alerts + now + spend + last + backup;
 }
 
 // ---------- Movimientos ----------
 function movList() {
-  const q = state.query.trim().toLowerCase();
+  const q = plain(state.query.trim());
   const f = state.filter;
   const list = db.movements.filter((m) => {
     if (f === 'in' && m.amount <= 0) return false;
     if (f === 'out' && m.amount >= 0) return false;
     if (!['all', 'in', 'out'].includes(f) && m.cat !== f) return false;
-    return !q || (m.title + ' ' + m.note + ' ' + m.desc).toLowerCase().includes(q);
+    return !q || plain(m.title + ' ' + m.note + ' ' + m.desc + ' ' + (m.geo?.locality || '')).includes(q) || Math.abs(m.amount).toFixed(2).replace('.', ',').includes(q.replace('.', ','));
   });
   if (!list.length) return '<p class="hint center">No hay movimientos que coincidan.</p>';
   const total = list.reduce((a, m) => a + m.amount, 0);
-  let html = `<p class="hint center">${list.length} movimientos · ${signed(total)}</p>`;
+  let html = `<p class="hint center">${list.length} ${list.length === 1 ? "movimiento" : "movimientos"} · ${signed(total)}</p>`;
   let day = '';
   for (const m of list) {
     if (m.date !== day) {
@@ -186,7 +206,7 @@ function movs() {
   const used = [...new Set(db.movements.map((m) => m.cat))];
   const chip = (k, label) => `<button class="chip ${state.filter === k ? 'on' : ''}" data-act="filter" data-f="${k}">${label}</button>`;
   return `<header class="top"><h1>Movimientos</h1><button class="btn small" data-act="import">＋ PDF</button></header>
-    <input class="search" id="q" type="search" placeholder="Buscar comercio, persona, concepto…" value="${esc(state.query)}" />
+    <input class="search" id="q" type="search" placeholder="Buscar comercio, persona, importe…" value="${esc(state.query)}" />
     <div class="chips scroll">${chip('all', 'Todos')}${chip('in', 'Ingresos')}${chip('out', 'Gastos')}${used.map((k) => chip(k, `${CATS[k].icon} ${CATS[k].name}`)).join('')}</div>
     <div id="mov-list">${movList()}</div>`;
 }
@@ -325,6 +345,7 @@ function goalSheet(g) {
   openSheet(`<h2>${g.emoji} ${esc(g.name)}</h2>
     <div class="big center">${eur(g.saved)}</div><p class="hint center">de ${eur(g.target)} · ${pct} %${g.due ? '<br />' + (dueTxt(g) || 'Fecha objetivo: ' + fmtDue(g.due)) : ''}</p><div class="bar"><i style="width:${pct}%"></i></div>
     <label class="field"><span>Cantidad (€)</span><input id="f-amount" type="text" inputmode="decimal" placeholder="50" /></label>
+    <div class="chips">${[...new Set([10, 20, 50, g.due && g.target > g.saved && monthsTo(g.due) >= 1 ? Math.ceil((g.target - g.saved) / monthsTo(g.due)) : null, g.target > g.saved ? +(g.target - g.saved).toFixed(2) : null].filter(Boolean))].map((v) => `<button class="chip" data-act="amt" data-v="${v}">${eur(v).replace(',00', '')}</button>`).join('')}</div>
     <div class="actions"><button class="btn" data-act="goal-add" data-id="${g.id}" data-sign="1">Aportar</button><button class="btn ghost" data-act="goal-add" data-id="${g.id}" data-sign="-1">Retirar</button></div>
     <div class="actions"><button class="btn ghost" data-act="goal-edit" data-id="${g.id}">Editar</button><button class="btn danger" data-act="goal-del" data-id="${g.id}">Eliminar</button></div>`);
 }
@@ -348,7 +369,7 @@ function movSheet(m) {
     <p class="hint center">${c.icon} ${c.name}${m.balance != null ? ' · saldo después ' + eur(m.balance) : ''}</p>
     ${m.raw ? `<p class="tip">🔔 «${esc(m.raw)}»</p>` : ''}
     ${m.geo ? geoBlock(m.geo) : ''}
-    ${m.manual || m.pending ? `<div class="actions"><button class="btn danger" data-act="mov-del" data-id="${esc(m.id)}">${m.pending ? 'Descartar aviso' : 'Eliminar apunte'}</button></div>` : ''}
+    ${m.manual || m.pending ? `<div class="actions"><button class="btn ghost" data-act="mov-edit" data-id="${esc(m.id)}">Editar</button><button class="btn danger" data-act="mov-del" data-id="${esc(m.id)}">${m.pending ? 'Descartar aviso' : 'Eliminar apunte'}</button></div>` : ''}
     <h3>Cambiar categoría</h3>
     <div class="catgrid">${options.map(([k, v]) => `<button class="catopt ${k === m.cat ? 'on' : ''}" data-act="setcat" data-id="${esc(m.id)}" data-cat="${k}"><span>${v.icon}</span>${v.name}</button>`).join('')}</div>
     <p class="hint">Se aplicará a todos los movimientos de «${esc(m.title)}», también a los que importes más adelante.</p>`);
@@ -371,6 +392,9 @@ function settingsSheet() {
   openSheet(`<h2>Ajustes</h2>
     <label class="field"><span>Porcentaje de la nómina que quieres ahorrar</span><input id="f-pct" type="text" inputmode="numeric" value="${db.settings.savePct}" /></label>
     <div class="actions"><button class="btn" data-act="pct-save">Guardar</button></div>
+    <h3>Aspecto</h3>
+    <div class="seg three">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, l]) => `<button class="${(db.settings.theme || 'auto') === k ? 'on' : ''}" data-act="theme" data-t="${k}">${l}</button>`).join('')}</div>
+    <label class="check"><input type="checkbox" data-act="hide-money" ${db.settings.hideMoney ? 'checked' : ''} /><span class="row-main"><b>Ocultar importes</b><small>Los difumina; también con el ojo de Inicio</small></span></label>
     <h3>Palabras clave de categorías</h3>
     ${kwSection()}
     <h3>Bloqueo</h3>
@@ -397,15 +421,17 @@ function settingsSheet() {
     <div class="actions"><button class="btn ghost" data-act="remind" data-on="${db.settings.remind ? 0 : 1}">${db.settings.remind ? 'Desactivar avisos' : 'Activar avisos'}</button></div>
     <h3>Actualizar</h3>
     <p class="hint">Versión ${__APP_VERSION__}${__BUILD_SHA__ ? ` · ${__BUILD_SHA__.slice(0, 7)}` : ''}. Descarga la última versión subida a GitHub y la instala encima, sin perder tus datos.</p>
+    <label class="check"><input type="checkbox" data-act="upd-auto" ${db.settings.updAuto === false ? '' : 'checked'} /><span class="row-main"><b>Avisarme de versiones nuevas</b><small>Lo comprueba al abrir la app, como mucho dos veces al día</small></span></label>
     <div class="actions"><button class="btn ghost" data-act="update">Buscar actualización</button></div>
     <h3>Tus datos</h3>
-    <p class="hint">Todo se guarda solo en este móvil. Haz una copia de vez en cuando para no perderlo si cambias de teléfono.</p>
+    <p class="hint">Todo se guarda solo en este móvil. Haz una copia de vez en cuando para no perderlo si cambias de teléfono. <b>${db.settings.lastBackup ? `Última copia: ${daysAgo(db.settings.lastBackup)}.` : 'Aún no has hecho ninguna copia.'}</b></p>
     <div class="actions"><button class="btn ghost" data-act="export">Exportar copia</button><button class="btn ghost" data-act="restore">Restaurar copia</button></div>
     <div class="actions"><button class="btn danger" data-act="wipe">Borrar todos los datos</button></div>`);
 }
 
 async function exportBackup() {
   const name = `mi-hucha-${todayIso()}.json`;
+  db.settings.lastBackup = todayIso(); save();
   const json = JSON.stringify({ ...db, settings: { ...db.settings, lock: undefined } }, null, 1);
   if (Capacitor.isNativePlatform()) {
     const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
@@ -605,6 +631,7 @@ async function checkUpdate(el) {
     const rel = await r.json();
     const apk = (rel.assets || []).find((a) => a.name.endsWith('.apk'));
     if (!apk) return toast('La última versión aún se está preparando. Prueba en unos minutos.');
+    db.settings.updAvail = rel.target_commitish; db.settings.updCheckAt = Date.now(); save();
     if (__BUILD_SHA__ && rel.target_commitish === __BUILD_SHA__) return toast('Ya tienes la última versión ✓');
     const d = new Date(rel.published_at);
     const when = `${d.getDate()} ${MES[d.getMonth()]} a las ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -628,6 +655,22 @@ ${rel.body || ''}
   } catch (e) {
     toast(e?.message || 'No se pudo comprobar. ¿Tienes conexión?');
   } finally { el.disabled = false; el.textContent = label; }
+}
+// Al abrir la app mira (como mucho cada 12 h) si hay versión nueva y lo enseña en Inicio.
+async function autoCheckUpdate() {
+  if (!Upd || db.settings.updAuto === false || !__BUILD_SHA__) return;
+  if (Date.now() - (db.settings.updCheckAt || 0) < 12 * 3600e3) return;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/tags/latest`, { cache: 'no-store' });
+    if (!r.ok) return;
+    const rel = await r.json();
+    if (!(rel.assets || []).some((a) => a.name.endsWith('.apk'))) return;
+    db.settings.updCheckAt = Date.now();
+    db.settings.updAvail = rel.target_commitish;
+    db.settings.updNotes = (rel.body || '').replace(/^Compilada a partir de \w+: /, '').slice(0, 140);
+    save();
+    if (rel.target_commitish !== __BUILD_SHA__ && state.tab === 'home' && sheet.hidden) render();
+  } catch { /* sin conexión: se reintenta al abrir */ }
 }
 let pinBuf = '';
 let hiddenAt = 0;
@@ -879,7 +922,11 @@ function addSheet(d) {
   state.draft = d;
   const cats = Object.entries(CATS).filter(([k, v]) => (d.kind === 'in' ? v.income && k !== 'nomina' : !v.income));
   if (!cats.some(([k]) => k === d.cat)) d.cat = d.kind === 'in' ? 'ingreso' : 'otros';
-  openSheet(`<h2>Apunte rápido</h2><p class="hint">Para el efectivo y lo que no sale en el extracto. Los pagos con tarjeta ya llegan al importar el PDF.</p>
+  // Conceptos que ya has apuntado a mano: un toque rellena el apunte.
+  const seen = new Set();
+  state.sugs = d.id ? [] : db.movements.filter((m) => m.manual && (d.kind === 'in') === m.amount > 0 && !seen.has(plain(m.title)) && seen.add(plain(m.title))).slice(0, 6);
+  const sugs = state.sugs.length && !d.title ? `<div class="chips scroll sugs">${state.sugs.map((m, i) => `<button class="chip" data-act="add-sug" data-i="${i}">${(CATS[m.cat] || CATS.otros).icon} ${esc(m.title)} · ${eur(Math.abs(m.amount)).replace(',00', '')}</button>`).join('')}</div>` : '';
+  openSheet(`<h2>${d.id ? 'Editar apunte' : 'Apunte rápido'}</h2>${d.id ? '' : '<p class="hint">Para el efectivo y lo que no sale en el extracto. Los pagos con tarjeta ya llegan al importar el PDF.</p>'}${sugs}
     <div class="seg"><button class="${d.kind === 'out' ? 'on' : ''}" data-act="add-kind" data-k="out">Gasto</button><button class="${d.kind === 'in' ? 'on' : ''}" data-act="add-kind" data-k="in">Ingreso</button></div>
     <label class="field"><span>Importe (€)</span><input id="f-amount" type="text" inputmode="decimal" placeholder="0,00" value="${esc(d.amount || '')}" /></label>
     <label class="field"><span>Concepto</span><input id="f-title" type="text" placeholder="${d.kind === 'in' ? 'Me devolvieron…' : 'Café, mercado, propina…'}" value="${esc(d.title || '')}" /></label>
@@ -954,6 +1001,12 @@ async function notifyBudget(k, u, level, i) {
   } catch (e) { console.error(e); }
 }
 
+// Tema (automático, claro u oscuro) e importes ocultos.
+function applyLook() {
+  const t = db.settings.theme;
+  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  document.body.classList.toggle('hide-money', !!db.settings.hideMoney);
+}
 function render() {
   app.innerHTML = VIEWS[state.tab]();
   setTimeout(checkBudgets, 0);
@@ -1051,7 +1104,7 @@ const ACTIONS = {
     save(); closeSheet(); state.tab = 'trips'; render();
     toast('Viaje guardado: ' + eur(tripSummary(db, { from, to }).total) + '.');
   },
-  'trip-del': (el) => { if (!confirm('¿Eliminar este viaje? Los pagos no se borran.')) return; db.trips = db.trips.filter((t) => t.id !== el.dataset.id); save(); closeSheet(); render(); },
+  'trip-del': (el) => { const id = el.dataset.id; closeSheet(); withUndo('Viaje eliminado. Los pagos no se borran.', () => { db.trips = db.trips.filter((t) => t.id !== id); }); },
   budgets: budgetSheet,
   'budget-save': () => {
     const next = {};
@@ -1104,11 +1157,23 @@ const ACTIONS = {
     const n = parseNum(d.amount);
     if (!n || n <= 0) return toast('Escribe el importe.');
     if (!d.date) return toast('Elige la fecha.');
-    addManual({ date: d.date, title: d.title.trim() || CATS[d.cat].name, amount: d.kind === 'in' ? n : -n, cat: d.cat });
+    const mov = { date: d.date, title: d.title.trim() || CATS[d.cat].name, amount: d.kind === 'in' ? n : -n, cat: d.cat };
+    if (d.id) editMov(d.id, mov); else addManual(mov);
     save(); closeSheet(); render();
-    toast('Apunte guardado.');
+    toast(d.id ? 'Apunte actualizado.' : 'Apunte guardado.');
   },
-  'mov-del': (el) => { db.movements = db.movements.filter((m) => m.id !== el.dataset.id); save(); closeSheet(); render(); toast('Apunte eliminado.'); },
+  'mov-del': (el) => { const id = el.dataset.id; closeSheet(); withUndo('Apunte eliminado.', () => { db.movements = db.movements.filter((m) => m.id !== id); }); },
+  'mov-edit': (el) => {
+    const m = db.movements.find((x) => x.id === el.dataset.id);
+    addSheet({ id: m.id, kind: m.amount > 0 ? 'in' : 'out', cat: m.cat, date: m.date, title: m.title, amount: String(Math.abs(m.amount)).replace('.', ',') });
+  },
+  'add-sug': (el) => { const m = state.sugs[+el.dataset.i]; addSheet({ ...addDraft(), title: m.title, cat: m.cat, amount: $('#f-amount').value || String(Math.abs(m.amount)).replace('.', ',') }); },
+  amt: (el) => { $('#f-amount').value = String(el.dataset.v).replace('.', ','); },
+  undo: () => { const f = undoFn; undoFn = null; $('#toast').hidden = true; f?.(); },
+  'hide-money': () => { db.settings.hideMoney = !db.settings.hideMoney; save(); applyLook(); render(); if (!sheet.hidden) settingsSheet(); },
+  theme: (el) => { db.settings.theme = el.dataset.t; save(); applyLook(); settingsSheet(); },
+  'upd-auto': (el) => { db.settings.updAuto = el.checked; save(); },
+  'backup-later': () => { db.settings.backupSnooze = todayIso(); save(); render(); },
   'exit-ask': (el) => { db.settings.exitNoAsk = !el.checked; save(); },
   'exit-yes': async () => {
     if ($('#f-noask')?.checked) { db.settings.exitNoAsk = true; save(); }
@@ -1128,15 +1193,19 @@ const ACTIONS = {
   settings: settingsSheet,
   mov: (el) => movSheet(db.movements.find((m) => m.id === el.dataset.id)),
   setcat: (el) => {
-    const m = db.movements.find((x) => x.id === el.dataset.id);
-    m.catSet = true;
-    if (m.generic) { m.cat = el.dataset.cat; save(); closeSheet(); render(); return toast('Categoría cambiada.'); }
-    const key = m.title.toLowerCase();
-    let n = 0;
-    for (const x of db.movements) if (x.title.toLowerCase() === key && x.amount > 0 === m.amount > 0) { x.cat = el.dataset.cat; n++; }
-    db.rules[key] = el.dataset.cat;
-    save(); closeSheet(); render();
-    toast(n > 1 ? `Categoría cambiada en ${n} movimientos.` : 'Categoría cambiada.');
+    const id = el.dataset.id, cat = el.dataset.cat;
+    const cur = db.movements.find((x) => x.id === id);
+    if (cur.cat === cat) return closeSheet();
+    const key = cur.title.toLowerCase();
+    const n = cur.generic ? 1 : db.movements.filter((x) => x.title.toLowerCase() === key && x.amount > 0 === cur.amount > 0).length;
+    closeSheet();
+    withUndo(n > 1 ? `Categoría cambiada en ${n} movimientos.` : 'Categoría cambiada.', () => {
+      const m = db.movements.find((x) => x.id === id);
+      m.catSet = true;
+      if (m.generic) { m.cat = cat; return; }
+      for (const x of db.movements) if (x.title.toLowerCase() === key && x.amount > 0 === m.amount > 0) x.cat = cat;
+      db.rules[key] = cat;
+    });
   },
   slip: (el) => slipSheet(db.payslips.find((p) => p.id === el.dataset.id)),
   'slip-missing': (el) => {
@@ -1147,7 +1216,7 @@ const ACTIONS = {
   'slip-new': (el) => slipForm({ company: db.payslips[0]?.company || '', net: el.dataset.net ? +el.dataset.net : null }, 'Añadir nómina'),
   'slip-edit': (el) => slipForm({ ...db.payslips.find((p) => p.id === el.dataset.id) }, 'Editar nómina'),
   'slip-save': saveSlip,
-  'slip-del': (el) => { if (!confirm('¿Eliminar esta nómina?')) return; db.payslips = db.payslips.filter((p) => p.id !== el.dataset.id); save(); closeSheet(); render(); },
+  'slip-del': (el) => { const id = el.dataset.id; closeSheet(); withUndo('Nómina eliminada.', () => { db.payslips = db.payslips.filter((p) => p.id !== id); }); },
   'goal-new': () => goalForm(),
   emoji: (el) => { state.draft.emoji = el.dataset.e; sheet.querySelectorAll('.emoji').forEach((b) => b.classList.toggle('on', b === el)); },
   'goal-save': () => {
@@ -1171,7 +1240,7 @@ const ACTIONS = {
     save(); closeSheet(); render();
     toast(+el.dataset.sign > 0 ? `${eur(n)} aportados a ${g.name}.` : `${eur(n)} retirados de ${g.name}.`);
   },
-  'goal-del': (el) => { if (!confirm('¿Eliminar este objetivo?')) return; db.goals = db.goals.filter((g) => g.id !== el.dataset.id); save(); closeSheet(); render(); },
+  'goal-del': (el) => { const id = el.dataset.id; closeSheet(); withUndo('Objetivo eliminado.', () => { db.goals = db.goals.filter((g) => g.id !== id); }); },
   'pct-save': () => {
     const n = parseNum($('#f-pct').value);
     if (n == null || n < 0 || n > 90) return toast('Pon un porcentaje entre 0 y 90.');
@@ -1214,8 +1283,10 @@ $('#file-json').addEventListener('change', async (e) => {
 });
 
 save();
+applyLook();
 lockNow();
 render();
+autoCheckUpdate();
 scheduleReminders();
 refreshNative().then(() => { if (!lockEl.hidden) drawLock(); tryBio(); takeNotis().catch(console.error); });
 document.addEventListener('visibilitychange', () => {

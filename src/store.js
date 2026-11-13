@@ -138,6 +138,15 @@ export function addManual({ date, title, amount, cat }) {
   sortMovs(db);
 }
 
+// Cambia un apunte a mano o un aviso pendiente.
+export function editMov(id, { date, title, amount, cat }) {
+  const m = db.movements.find((x) => x.id === id);
+  if (!m) return;
+  Object.assign(m, { date, valueDate: date, title, amount, cat, catSet: true });
+  if (m.manual) m.desc = title;
+  sortMovs(db);
+}
+
 // Movimiento provisional creado a partir de un aviso del banco.
 export function addPending(m) {
   const dup = db.movements.find((x) => x.id === m.id || (x.pending && Math.abs(x.amount - m.amount) < 0.005 && Math.abs(x.time - m.time) < 180000));
