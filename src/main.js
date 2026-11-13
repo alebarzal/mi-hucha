@@ -557,6 +557,43 @@ const Noti = Capacitor.isNativePlatform() ? registerPlugin('BankNoti') : null;
 const Upd = Capacitor.isNativePlatform() ? registerPlugin('Updater') : null;
 
 // ---------- actualizar desde GitHub ----------
+// Ventana con la barra de descarga y el porcentaje.
+function progressBox() {
+  const box = document.createElement('div');
+  box.className = 'upd';
+  box.innerHTML = `<div class="upd-card" role="dialog" aria-label="Descargando actualización">
+    <div class="upd-icon">⬇️</div>
+    <b class="upd-title">Descargando actualización</b>
+    <div class="upd-pct" aria-live="polite">0 %</div>
+    <div class="upd-track indet"><div class="upd-fill"></div></div>
+    <small class="upd-size">Conectando con GitHub…</small></div>`;
+  document.body.appendChild(box);
+  const $q = (s) => box.querySelector(s);
+  const mb = (b) => (b / 1048576).toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return {
+    set(done, total) {
+      if (total > 0) {
+        const pct = Math.min(100, Math.floor((done * 100) / total));
+        $q('.upd-track').classList.remove('indet');
+        $q('.upd-fill').style.width = pct + '%';
+        $q('.upd-pct').textContent = pct + ' %';
+        $q('.upd-size').textContent = `${mb(done)} de ${mb(total)} MB`;
+      } else $q('.upd-size').textContent = `${mb(done)} MB descargados`;
+    },
+    finish() {
+      $q('.upd-track').classList.remove('indet');
+      $q('.upd-fill').style.width = '100%';
+      $q('.upd-pct').textContent = '100 %';
+      $q('.upd-title').textContent = 'Lista para instalar';
+      $q('.upd-icon').textContent = '✅';
+      $q('.upd-size').textContent = 'Abriendo el instalador de Android…';
+      box.classList.add('done');
+      setTimeout(() => this.close(), 2500);
+    },
+    close() { box.classList.add('out'); setTimeout(() => box.remove(), 200); },
+  };
+}
+
 const REPO = 'alebarzal/mi-hucha';
 async function checkUpdate(el) {
   const label = el.textContent;
@@ -582,8 +619,12 @@ ${rel.body || ''}
       await Upd.openInstallSettings();
       return;
     }
-    el.textContent = 'Descargando…';
-    await Upd.install({ url: apk.browser_download_url });
+    const bar = progressBox();
+    const sub = await Upd.addListener('progress', (p) => bar.set(p.done, p.total));
+    try {
+      await Upd.install({ url: apk.browser_download_url });
+      bar.finish();
+    } catch (e) { bar.close(); throw e; } finally { sub.remove(); }
   } catch (e) {
     toast(e?.message || 'No se pudo comprobar. ¿Tienes conexión?');
   } finally { el.disabled = false; el.textContent = label; }

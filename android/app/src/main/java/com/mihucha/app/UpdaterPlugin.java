@@ -70,10 +70,25 @@ public class UpdaterPlugin extends Plugin {
             int code = c.getResponseCode();
             if (code >= 300 && code < 400) { url = c.getHeaderField("Location"); c.disconnect(); continue; }
             if (code != 200) throw new Exception("HTTP " + code);
+            long total = c.getContentLengthLong();
             try (InputStream in = c.getInputStream(); OutputStream os = new FileOutputStream(out)) {
                 byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                int n, lastPct = -1;
+                long done = 0, lastSent = 0;
+                while ((n = in.read(buf)) > 0) {
+                    os.write(buf, 0, n);
+                    done += n;
+                    int pct = total > 0 ? (int) (done * 100 / total) : -1;
+                    long now = System.currentTimeMillis();
+                    // Avisa a la app como mucho una vez por cada 1 % (o cada 200 ms si no se sabe el tamaño).
+                    if (total > 0 ? pct != lastPct : now - lastSent > 200) {
+                        lastPct = pct; lastSent = now;
+                        JSObject p = new JSObject();
+                        p.put("done", done);
+                        p.put("total", total);
+                        notifyListeners("progress", p);
+                    }
+                }
             } finally { c.disconnect(); }
             return;
         }
