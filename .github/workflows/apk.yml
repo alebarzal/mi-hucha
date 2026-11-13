@@ -18,14 +18,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -36,8 +36,8 @@ jobs:
           KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
         run: |
           if [ -z "$KEYSTORE" ]; then echo "Falta el secreto DEBUG_KEYSTORE"; exit 1; fi
-          mkdir -p ~/.android
-          echo "$KEYSTORE" | base64 -d > ~/.android/debug.keystore
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/debug.keystore"
+          echo "MIHUCHA_KEYSTORE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
 
       - name: Compilar
         run: |
@@ -47,6 +47,8 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../MiHucha.apk
+          # Comprueba que salió firmado con la clave buena antes de publicarlo.
+          "$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner" verify --print-certs ../MiHucha.apk | grep -q "1da97cc3434b4afdaf6424ebd086f1f07dfb3a7dd721a086530ef5249c85e730"
 
       - name: Publicar
         env:

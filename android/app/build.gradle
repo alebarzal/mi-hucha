@@ -16,6 +16,19 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // En GitHub se firma con la misma clave que la app instalada (secreto DEBUG_KEYSTORE),
+    // para que el botón "Buscar actualización" pueda instalarla encima.
+    signingConfigs {
+        debug {
+            def ks = System.getenv('MIHUCHA_KEYSTORE')
+            if (ks) {
+                storeFile file(ks)
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
