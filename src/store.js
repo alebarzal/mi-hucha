@@ -11,6 +11,7 @@ export const CATS = {
   gasolina: { name: 'Gasolina', icon: '⛽', color: '#8a6fd1' },
   compras: { name: 'Compras', icon: '🛍️', color: '#d1a13a' },
   salud: { name: 'Salud', icon: '💊', color: '#3fae8c' },
+  mascota: { name: 'Mascota', icon: '🐾', color: '#b07a4a' },
   ocio: { name: 'Ocio', icon: '🎮', color: '#5b7fe0' },
   hogar: { name: 'Casa y facturas', icon: '🏠', color: '#7c8a99' },
   transporte: { name: 'Transporte', icon: '🚌', color: '#4aa3c7' },
@@ -19,7 +20,9 @@ export const CATS = {
   otros: { name: 'Otros', icon: '📦', color: '#8d8f96' },
 };
 
+const PET = /zooplus|tiendanimal|kiwoko|veterinari|protectora/i;
 const RULES = [
+  [PET, 'mascota'], // antes que Salud: «Clínica Veterinaria» no es una clínica para ti
   [/mercadona|leclerc|\bdia\b|carrefour|lidl|aldi|alcampo|market|gadis|froiz|eroski|consum|supermerc/i, 'super'],
   [/carbur|gasolin|repsol|cepsa|\bbp\b|galp|shell|petro/i, 'gasolina'],
   [/pizza|tapas|\bbar\b|restaur|cafe|casa vallejo|celi and co|martinica|burger|kebab|mcdonald|telepizza|glovo|just eat|cervec|meson|taberna/i, 'resta'],
@@ -29,6 +32,16 @@ const RULES = [
   [/renfe|alsa|\bbus\b|taxi|uber|cabify|parking|peaje/i, 'transporte'],
   [/iberdrola|endesa|naturgy|movistar|vodafone|orange|digi|alquiler|comunidad|seguro|agua/i, 'hogar'],
 ];
+
+// Palabras clave que el usuario añade desde Ajustes: { categoria: ['palabra', ...] }.
+let KW = {};
+export function setKeywords(k) { KW = k || {}; }
+const plain = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export const kwMatch = (m, w) => plain((m.desc || '') + ' ' + (m.title || '')).includes(plain(w).trim());
+function keywordCat(m) {
+  for (const [cat, words] of Object.entries(KW)) if (CATS[cat] && words.some((w) => w && kwMatch(m, w))) return cat;
+  return null;
+}
 
 export function guessCat(m, rules = {}) {
   const key = m.title.toLowerCase();
@@ -40,20 +53,39 @@ export function guessCat(m, rules = {}) {
     return 'ingreso';
   }
   if (/^Bizum A Favor/i.test(d)) return 'bizum_out';
+  const kw = keywordCat(m);
+  if (kw) return kw;
   for (const [re, cat] of RULES) if (re.test(d)) return cat;
   return 'otros';
 }
 
-const empty = () => ({ account: { holder: '', iban: '', balance: null, balanceDate: null }, movements: [], payslips: [], goals: [], trips: [], rules: {}, budgets: {}, settings: { savePct: 20 } });
+const empty = () => ({ account: { holder: '', iban: '', balance: null, balanceDate: null }, movements: [], payslips: [], goals: [], trips: [], rules: {}, budgets: {}, catKeywords: {}, settings: { savePct: 20 } });
 
 export let db = load();
+setKeywords(db.catKeywords);
 
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return fixPending({ ...empty(), ...JSON.parse(raw) });
+    if (raw) return upgrade110(fixPending({ ...empty(), ...JSON.parse(raw) }));
   } catch { /* almacenamiento no disponible */ }
-  return empty();
+  return upgrade110(empty());
+}
+
+// Versión 1.10: categoría Mascota, su tope mensual y el objetivo del arenero (solo si ya había datos).
+function upgrade110(d) {
+  if (d.settings.v110) return d;
+  d.settings.v110 = true;
+  if (!d.movements.length && !d.payslips.length) return d;
+  d.budgets = d.budgets || {};
+  if (d.budgets.mascota == null) d.budgets.mascota = 35;
+  d.settings.budgetMonthly = { ...(d.settings.budgetMonthly || {}), mascota: true };
+  d.goals = d.goals || [];
+  if (!d.goals.some((g) => /arenero/i.test(g.name))) d.goals.push({ id: 'g-arenero', name: 'Arenero automático', target: 225, emoji: '🐱', saved: 0, due: '2027-04-13' });
+  for (const m of d.movements) {
+    if (m.amount < 0 && !m.catSet && !(d.rules || {})[m.title.toLowerCase()] && PET.test(m.desc || '')) m.cat = 'mascota';
+  }
+  return d;
 }
 
 // Avisos guardados por versiones anteriores con "con tu tarjeta" como comercio.
@@ -121,7 +153,7 @@ export function addPending(m) {
   return 'added';
 }
 
-export function replaceDb(next) { db = { ...empty(), ...next }; save(); }
+export function replaceDb(next) { db = upgrade110({ ...empty(), ...next }); setKeywords(db.catKeywords); save(); }
 export function resetDb() { db = empty(); save(); }
 
 // ---------- cálculos ----------
@@ -164,6 +196,22 @@ export function nextPayday() {
   const last = toDate(pays[pays.length - 1].date);
   const n = new Date(last.getFullYear(), last.getMonth() + 1, day);
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+
+// Gasto de una categoría en un mes natural (AAAA-MM).
+export function monthSpent(cat, ym = todayIso().slice(0, 7)) {
+  return -db.movements.filter((m) => m.amount < 0 && m.cat === cat && m.date.startsWith(ym)).reduce((a, m) => a + m.amount, 0);
+}
+
+// Estado de un tope: por mes natural o desde la última nómina.
+export function budgetUse(k) {
+  const b = db.budgets[k];
+  if (!b) return null;
+  const monthly = !!db.settings.budgetMonthly?.[k];
+  let spent = 0, key = '';
+  if (monthly) { key = todayIso().slice(0, 7); spent = monthSpent(k, key); }
+  else { const p = periods()[0]; if (p) { key = p.from; spent = p.byCat[k] || 0; } }
+  return { b, monthly, spent, key, r: spent / b };
 }
 
 export const goalsTotal = () => db.goals.reduce((a, g) => a + g.saved, 0);

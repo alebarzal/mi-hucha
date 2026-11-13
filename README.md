@@ -10,15 +10,17 @@ Creada por [alebarzal](https://github.com/alebarzal).
 - **Inicio**: saldo, cobrado y gastado desde la última nómina, y cuánto puedes gastar al día para cumplir tu objetivo de ahorro.
 - **Gastos**: desglose por categoría (gasolina, supermercado, ocio…) con gráfico, comparación con el periodo anterior y detalle por comercio.
 - **Movimientos**: buscador, filtros y categorías automáticas que aprenden de tus cambios.
-- **Topes de gasto** por categoría entre nómina y nómina.
+- **Topes de gasto** por categoría, entre nómina y nómina o por mes natural, con aviso al 80 % y al pasarse.
+- **Categoría Mascota** con reglas automáticas (Zooplus, Tiendanimal, Kiwoko, veterinarias, protectoras) y **palabras clave** propias para cualquier categoría.
 - **Nóminas**: desglose de bruto, Seguridad Social e IRPF, neto por hora y previsión orientativa de la renta.
-- **Ahorro**: objetivos con aportaciones y lo que ahorras en cada periodo.
+- **Ahorro**: objetivos con aportaciones y fecha objetivo opcional (te dice cuánto apartar al mes), y lo que ahorras en cada periodo.
 - **Viajes**: indicas dónde vives y la app separa los pagos de tu zona de los de fuera, propone viajes y muestra el gasto por lugar.
 - **Avisos del banco**: lee las notificaciones de la app del banco y de Google Wallet o Samsung Wallet (con el nombre del comercio) y apunta cada pago al momento como pendiente, hasta que llega el extracto.
 - **Ubicación de los pagos** (opcional): guarda dónde estabas al llegar cada aviso, con calle, ciudad y enlace al mapa. Solo se captura en el instante del aviso y se guarda en el móvil.
 - **Apunte rápido** para el efectivo, **recordatorios** para importar y **bloqueo** con PIN y huella.
 - **Gesto atrás** que cierra menús y vuelve a Inicio, con confirmación opcional antes de salir.
 - **Copia de seguridad** exportable a un archivo.
+- **Actualizar desde la app**: en cada push a `main`, GitHub Actions compila el APK y lo publica en la versión `latest`; el botón "Buscar actualización" de Ajustes lo descarga e instala encima. Para firmarlo con la misma clave que la app instalada, el workflow usa el secreto `DEBUG_KEYSTORE` (el `debug.keystore` en base64).
 
 ## Tecnología
 

@@ -1,5 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { CATS, db, save, mergeBank, addManual, addPending, replaceDb, resetDb, periods, paydays, nextPayday, goalsTotal, todayIso, toDate, dayDiff } from './store.js';
+import { CATS, db, save, mergeBank, addManual, addPending, budgetUse, setKeywords, kwMatch, replaceDb, resetDb, periods, paydays, nextPayday, goalsTotal, todayIso, toDate, dayDiff } from './store.js';
 import { detectType, parseBank, parsePayslip } from './parser.js';
 import { forecast, LIMIT_ONE_PAYER, LIMIT_TWO_PAYERS, SECOND_PAYER_MIN } from './tax.js';
 import { parseNoti } from './noti.js';
@@ -133,7 +133,7 @@ function home() {
       const c = CATS[k] || CATS.otros;
       return `<button class="cat" data-act="cat-filter" data-cat="${k}">
         <span class="bubble" style="--c:${c.color}">${c.icon}</span>
-        <span class="cat-main"><span class="cat-top"><b>${c.name}</b><span>${eur(v)}${db.budgets[k] ? ` <small>de ${eur0(db.budgets[k])}</small>` : ''}</span></span>
+        <span class="cat-main"><span class="cat-top"><b>${c.name}</b><span>${eur(v)}${db.budgets[k] ? ` <small>${budgetUse(k).monthly ? '· ' + budTxt(k) : 'de ' + eur0(db.budgets[k])}</small>` : ''}</span></span>
         <span class="bar thin"><i style="${barStyle(k, v, max, c.color)}"></i></span></span>
       </button>`;
     }).join('') : '<p class="hint">Sin gastos en este periodo.</p>'}
@@ -148,7 +148,12 @@ function home() {
     <p class="hint">Un recordatorio si llevas 15 días sin importar el extracto y otro al día siguiente de cobrar.</p>
     <div class="actions"><button class="btn" data-act="remind" data-on="1">Activar avisos</button><button class="btn ghost" data-act="remind" data-on="0">No, gracias</button></div></section>` : '';
   const askHome = !db.settings.home?.length && placeStats(db).length ? askHomeCard() : '';
-  return head + hero + remind + askHome + now + spend + last;
+  const alerts = Object.keys(db.budgets).map((k) => [k, budgetUse(k)]).filter(([, u]) => u && u.r >= 0.8).map(([k, u]) => {
+    const c = CATS[k] || CATS.otros;
+    return `<button class="note budget-alert ${u.r >= 1 ? 'over' : ''}" data-act="cat-filter" data-cat="${k}"><b>${c.icon} ${u.r >= 1 ? 'Te has pasado del tope de' : 'Cerca del tope de'} ${c.name}</b>
+      <span>${eur(u.spent)} de ${eur0(u.b)} ${u.monthly ? 'este mes' : 'desde la última nómina'} · ${Math.round(u.r * 100)} %</span></button>`;
+  }).join('');
+  return head + hero + remind + askHome + alerts + now + spend + last;
 }
 
 // ---------- Movimientos ----------
@@ -283,7 +288,7 @@ function savings() {
   const goals = db.goals.map((g) => {
     const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
     const left = g.target - g.saved;
-    const eta = left <= 0 ? '¡Conseguido! 🎉' : avg > 0 ? `A tu ritmo, en unos ${Math.ceil(left / avg)} meses` : `Faltan ${eur(left)}`;
+    const eta = left <= 0 ? '¡Conseguido! 🎉' : g.due ? dueTxt(g) : avg > 0 ? `A tu ritmo, en unos ${Math.ceil(left / avg)} meses` : `Faltan ${eur(left)}`;
     return `<button class="goal" data-act="goal" data-id="${g.id}"><span class="goal-top"><span class="bubble" style="--c:#1f9d6b">${g.emoji}</span><span class="row-main"><b>${esc(g.name)}</b><small>${eta}</small></span><span class="pct">${pct} %</span></span>
       <span class="bar"><i style="width:${pct}%"></i></span><span class="goal-sub"><span>${eur(g.saved)}</span><span>de ${eur(g.target)}</span></span></button>`;
   }).join('');
@@ -292,19 +297,33 @@ function savings() {
     tip + `<div class="actions"><button class="btn" data-act="goal-new">＋ Nuevo objetivo</button></div>`;
 }
 
-const EMOJIS = ['🛟', '✈️', '🏠', '🚗', '💻', '🎓', '🎁', '🏖️', '💍', '🐷'];
+const EMOJIS = ['🛟', '✈️', '🏠', '🚗', '💻', '🎓', '🎁', '🏖️', '💍', '🐷', '🐱'];
+const fmtDue = (iso) => { const d = toDate(iso); return `${d.getDate()} ${MES[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''}`; };
+function monthsTo(iso) {
+  const a = toDate(todayIso()), b = toDate(iso);
+  return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) - (b.getDate() < a.getDate() ? 1 : 0);
+}
+// Qué falta para un objetivo con fecha: cuánto apartar al mes.
+function dueTxt(g) {
+  const left = g.target - g.saved;
+  if (!g.due || left <= 0) return '';
+  if (dayDiff(todayIso(), g.due) < 0) return `Fecha pasada (${fmtDue(g.due)}) · faltan ${eur(left)}`;
+  const m = monthsTo(g.due);
+  return m < 1 ? `Para el ${fmtDue(g.due)}: faltan ${eur(left)}` : `Para el ${fmtDue(g.due)}: aparta ${eur0(Math.ceil(left / m))} al mes`;
+}
 function goalForm(g) {
   state.draft = g ? { ...g } : { emoji: '🛟' };
   openSheet(`<h2>${g ? 'Editar objetivo' : 'Nuevo objetivo'}</h2>
     <label class="field"><span>Nombre</span><input id="f-name" type="text" placeholder="Fondo de emergencia" value="${esc(g?.name || '')}" /></label>
     <label class="field"><span>Cantidad a conseguir (€)</span><input id="f-target" type="text" inputmode="decimal" placeholder="3000" value="${g ? String(g.target).replace('.', ',') : ''}" /></label>
+    <label class="field"><span>Fecha objetivo (opcional)</span><input id="f-due" type="date" min="${todayIso()}" value="${g?.due || ''}" /></label>
     <div class="field"><span>Icono</span><div class="emojis">${EMOJIS.map((e) => `<button class="emoji ${e === state.draft.emoji ? 'on' : ''}" data-act="emoji" data-e="${e}">${e}</button>`).join('')}</div></div>
     <div class="actions"><button class="btn" data-act="goal-save">Guardar</button></div>`);
 }
 function goalSheet(g) {
   const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
   openSheet(`<h2>${g.emoji} ${esc(g.name)}</h2>
-    <div class="big center">${eur(g.saved)}</div><p class="hint center">de ${eur(g.target)} · ${pct} %</p><div class="bar"><i style="width:${pct}%"></i></div>
+    <div class="big center">${eur(g.saved)}</div><p class="hint center">de ${eur(g.target)} · ${pct} %${g.due ? '<br />' + (dueTxt(g) || 'Fecha objetivo: ' + fmtDue(g.due)) : ''}</p><div class="bar"><i style="width:${pct}%"></i></div>
     <label class="field"><span>Cantidad (€)</span><input id="f-amount" type="text" inputmode="decimal" placeholder="50" /></label>
     <div class="actions"><button class="btn" data-act="goal-add" data-id="${g.id}" data-sign="1">Aportar</button><button class="btn ghost" data-act="goal-add" data-id="${g.id}" data-sign="-1">Retirar</button></div>
     <div class="actions"><button class="btn ghost" data-act="goal-edit" data-id="${g.id}">Editar</button><button class="btn danger" data-act="goal-del" data-id="${g.id}">Eliminar</button></div>`);
@@ -335,11 +354,25 @@ function movSheet(m) {
     <p class="hint">Se aplicará a todos los movimientos de «${esc(m.title)}», también a los que importes más adelante.</p>`);
 }
 
+// ---------- palabras clave ----------
+function kwSection() {
+  const kw = db.catKeywords || {};
+  const chips = Object.entries(kw).flatMap(([cat, ws]) => ws.map((w) => `<button class="kw" data-act="kw-del" data-cat="${cat}" data-w="${esc(w)}" aria-label="Quitar ${esc(w)}">${CATS[cat]?.icon || ''} ${esc(w)} <span>×</span></button>`)).join('');
+  const opts = Object.entries(CATS).filter(([k, v]) => !v.income && k !== 'ahorro').map(([k, v]) => `<option value="${k}" ${k === 'mascota' ? 'selected' : ''}>${v.icon} ${v.name}</option>`).join('');
+  return `<p class="hint">Si el comercio o el concepto contiene la palabra, el gasto va a esa categoría. Se suman a las reglas que ya trae la app (Zooplus, Tiendanimal, Kiwoko, «veterinari» y «protectora» van a Mascota).</p>
+    ${chips ? `<div class="kws">${chips}</div>` : ''}
+    <div class="grid2"><label class="field"><span>Palabra</span><input id="f-kw" type="text" placeholder="arenero, peluquería…" /></label>
+    <label class="field"><span>Categoría</span><select id="f-kwcat">${opts}</select></label></div>
+    <div class="actions"><button class="btn ghost" data-act="kw-add">Añadir palabra</button></div>`;
+}
+
 // ---------- ajustes ----------
 function settingsSheet() {
   openSheet(`<h2>Ajustes</h2>
     <label class="field"><span>Porcentaje de la nómina que quieres ahorrar</span><input id="f-pct" type="text" inputmode="numeric" value="${db.settings.savePct}" /></label>
     <div class="actions"><button class="btn" data-act="pct-save">Guardar</button></div>
+    <h3>Palabras clave de categorías</h3>
+    ${kwSection()}
     <h3>Bloqueo</h3>
     ${db.settings.lock ? `<p class="hint">Activado: la app pide ${native.bio ? 'tu huella o el PIN' : 'el PIN'} al abrirla.</p>
       <label class="field"><span>PIN actual, para quitarlo</span><input id="f-pin-old" type="password" inputmode="numeric" maxlength="4" autocomplete="off" /></label>
@@ -362,6 +395,9 @@ function settingsSheet() {
     <h3>Recordatorios</h3>
     <p class="hint">${db.settings.remind ? 'Activados: te aviso a los 15 días sin importar y al día siguiente de cobrar.' : 'Desactivados.'}</p>
     <div class="actions"><button class="btn ghost" data-act="remind" data-on="${db.settings.remind ? 0 : 1}">${db.settings.remind ? 'Desactivar avisos' : 'Activar avisos'}</button></div>
+    <h3>Actualizar</h3>
+    <p class="hint">Versión ${__APP_VERSION__}${__BUILD_SHA__ ? ` · ${__BUILD_SHA__.slice(0, 7)}` : ''}. Descarga la última versión subida a GitHub y la instala encima, sin perder tus datos.</p>
+    <div class="actions"><button class="btn ghost" data-act="update">Buscar actualización</button></div>
     <h3>Tus datos</h3>
     <p class="hint">Todo se guarda solo en este móvil. Haz una copia de vez en cuando para no perderlo si cambias de teléfono.</p>
     <div class="actions"><button class="btn ghost" data-act="export">Exportar copia</button><button class="btn ghost" data-act="restore">Restaurar copia</button></div>
@@ -435,20 +471,27 @@ function heroSub() {
 
 // ---------- topes de gasto ----------
 function barStyle(k, v, max, color) {
-  const b = db.budgets[k];
-  if (!b) return `width:${Math.max(3, (v / max) * 100)}%;background:${color}`;
-  const r = v / b;
-  return `width:${Math.min(100, Math.max(3, r * 100))}%;background:${r > 1 ? 'var(--neg)' : r > 0.85 ? '#e0a43a' : color}`;
+  const u = budgetUse(k);
+  if (!u) return `width:${Math.max(3, (v / max) * 100)}%;background:${color}`;
+  const r = u.monthly ? u.r : v / u.b;
+  return `width:${Math.min(100, Math.max(3, r * 100))}%;background:${r > 1 ? 'var(--neg)' : r >= 0.8 ? '#e0a43a' : color}`;
+}
+// Texto corto del tope para las filas de categoría.
+function budTxt(k) {
+  const u = budgetUse(k);
+  if (!u) return '';
+  return u.monthly ? `${eur0(u.spent)} de ${eur0(u.b)} este mes` : `tope ${eur0(u.b)}`;
 }
 function budgetSheet() {
   const done = periods().filter((p) => p.pay && p.to);
   const avg = (k) => (done.length ? done.reduce((a, p) => a + (p.byCat[k] || 0), 0) / done.length : 0);
   openSheet(`<h2>Topes de gasto</h2>
-    <p class="hint">Lo máximo que quieres gastar en cada categoría entre una nómina y la siguiente. Deja en blanco las que no quieras controlar.</p>
+    <p class="hint">Lo máximo que quieres gastar en cada categoría, entre una nómina y la siguiente o por mes natural. Te aviso al llegar al 80 % y al pasarte. Deja en blanco las que no quieras controlar.</p>
     ${Object.entries(CATS).filter(([k, v]) => !v.income && k !== 'ahorro').map(([k, v]) => `<label class="budget">
       <span class="bubble" style="--c:${v.color}">${v.icon}</span>
       <span class="row-main"><b>${v.name}</b><small>${avg(k) ? 'Sueles gastar ' + eur0(avg(k)) : 'Sin gasto habitual'}</small></span>
-      <input data-bud="${k}" type="text" inputmode="decimal" placeholder="—" value="${db.budgets[k] ? String(db.budgets[k]).replace('.', ',') : ''}" /></label>`).join('')}
+      <input data-bud="${k}" type="text" inputmode="decimal" placeholder="—" value="${db.budgets[k] ? String(db.budgets[k]).replace('.', ',') : ''}" />
+      <select data-budp="${k}" aria-label="Periodo del tope"><option value="p">/nóm.</option><option value="m" ${db.settings.budgetMonthly?.[k] ? 'selected' : ''}>/mes</option></select></label>`).join('')}
     <div class="actions"><button class="btn" data-act="budget-save">Guardar topes</button></div>`);
 }
 
@@ -511,6 +554,40 @@ const lockEl = $('#lock');
 const native = { bio: false, noti: false, geo: {} };
 const Bio = Capacitor.isNativePlatform() ? registerPlugin('Biometric') : null;
 const Noti = Capacitor.isNativePlatform() ? registerPlugin('BankNoti') : null;
+const Upd = Capacitor.isNativePlatform() ? registerPlugin('Updater') : null;
+
+// ---------- actualizar desde GitHub ----------
+const REPO = 'alebarzal/mi-hucha';
+async function checkUpdate(el) {
+  const label = el.textContent;
+  el.disabled = true; el.textContent = 'Buscando…';
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/tags/latest`, { cache: 'no-store' });
+    if (r.status === 404) return toast('Todavía no hay ninguna versión publicada en GitHub.');
+    if (!r.ok) throw new Error();
+    const rel = await r.json();
+    const apk = (rel.assets || []).find((a) => a.name.endsWith('.apk'));
+    if (!apk) return toast('La última versión aún se está preparando. Prueba en unos minutos.');
+    if (__BUILD_SHA__ && rel.target_commitish === __BUILD_SHA__) return toast('Ya tienes la última versión ✓');
+    const d = new Date(rel.published_at);
+    const when = `${d.getDate()} ${MES[d.getMonth()]} a las ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (!confirm(`Hay una versión nueva (${when}):
+${rel.body || ''}
+
+¿Descargarla e instalarla? Tus datos se mantienen.`)) return;
+    if (!Upd) { window.open(apk.browser_download_url, '_blank'); return; }
+    const { allowed } = await Upd.canInstall();
+    if (!allowed) {
+      toast('Permite a Mi Hucha instalar aplicaciones y vuelve a pulsar «Buscar actualización».');
+      await Upd.openInstallSettings();
+      return;
+    }
+    el.textContent = 'Descargando…';
+    await Upd.install({ url: apk.browser_download_url });
+  } catch (e) {
+    toast(e?.message || 'No se pudo comprobar. ¿Tienes conexión?');
+  } finally { el.disabled = false; el.textContent = label; }
+}
 let pinBuf = '';
 let hiddenAt = 0;
 async function sha(salt, pin) {
@@ -687,7 +764,7 @@ function spending() {
       <span class="bubble" style="--c:${c.color}">${c.icon}</span>
       <span class="cat-main"><span class="cat-top"><b>${c.name}</b><span>${eur(v.total)}</span></span>
       <span class="bar thin"><i style="${barStyle(k, v.total, max, c.color)}"></i></span>
-      <small class="muted">${pct} % · ${v.n} ${v.n === 1 ? 'pago' : 'pagos'}${db.budgets[k] ? ` · tope ${eur0(db.budgets[k])}` : ''}${diff}</small></span><span class="chev">›</span></button>`;
+      <small class="muted">${pct} % · ${v.n} ${v.n === 1 ? 'pago' : 'pagos'}${db.budgets[k] ? ` · ${budTxt(k)}` : ''}${diff}</small></span><span class="chev">›</span></button>`;
   }).join('');
   return head + `<div class="chips scroll">${chips}</div>` +
     (rows.length ? `<section class="card">${donut}</section><section class="card flush">${list}</section>
@@ -703,8 +780,9 @@ function catDetail(cat) {
   const c = CATS[cat] || CATS.otros;
   const shops = Object.entries(v.movs.reduce((a, m) => { (a[m.title] ||= { total: 0, n: 0 }); a[m.title].total -= m.amount; a[m.title].n++; return a; }, {})).sort((a, b) => b[1].total - a[1].total);
   const b = db.budgets[cat];
+  const u = budgetUse(cat);
   openSheet(`<h2>${c.icon} ${c.name}</h2><p class="hint">${p.label}</p>
-    <div class="big center">${eur(v.total)}</div><p class="hint center">${v.n} ${v.n === 1 ? 'pago' : 'pagos'} · media ${eur(v.total / v.n)}${b ? ` · ${Math.round((v.total / b) * 100)} % del tope de ${eur0(b)}` : ''}</p>
+    <div class="big center">${eur(v.total)}</div><p class="hint center">${v.n} ${v.n === 1 ? 'pago' : 'pagos'} · media ${eur(v.total / v.n)}${b ? (u.monthly ? ` · este mes ${eur(u.spent)} de ${eur0(b)} (${Math.round(u.r * 100)} %)` : ` · ${Math.round((v.total / b) * 100)} % del tope de ${eur0(b)}`) : ''}</p>
     ${b ? `<div class="bar"><i style="${barStyle(cat, v.total, b, c.color)}"></i></div>` : ''}
     <h3>Dónde</h3>${shops.map(([k, s]) => ln(`${esc(k)}${s.n > 1 ? ` <small class="muted">× ${s.n}</small>` : ''}`, eur(s.total))).join('')}
     <h3>Pagos</h3><div class="card flush inset">${v.movs.map((m) => movRow(m).replace('<small>', `<small>${short(m.date)} · `)).join('')}</div>
@@ -806,8 +884,38 @@ if (Capacitor.isNativePlatform()) {
 
 // ---------- render y eventos ----------
 const VIEWS = { home, movs, spending, payroll, savings, trips };
+// Avisa una vez al cruzar el 80 % y otra al pasar el 100 % de cada tope (por mes o por nómina).
+function checkBudgets() {
+  const st = db.settings.budgetAlerts || {};
+  let changed = false;
+  Object.keys(db.budgets).forEach((k, i) => {
+    const u = budgetUse(k);
+    if (!u) return;
+    const level = u.r >= 1 ? 2 : u.r >= 0.8 ? 1 : 0;
+    const prev = st[k]?.key === u.key ? st[k].level : 0;
+    if (st[k]?.key !== u.key || st[k].level !== level) { st[k] = { key: u.key, level }; changed = true; }
+    if (level > prev) notifyBudget(k, u, level, i);
+  });
+  if (changed) { db.settings.budgetAlerts = st; save(); }
+}
+async function notifyBudget(k, u, level, i) {
+  const c = CATS[k] || CATS.otros;
+  const when = u.monthly ? 'este mes' : 'desde la última nómina';
+  const msg = level === 2
+    ? `Te has pasado del tope de ${c.name}: ${eur(u.spent)} de ${eur0(u.b)} ${when}.`
+    : `Llevas el ${Math.round(u.r * 100)} % del tope de ${c.name}: ${eur(u.spent)} de ${eur0(u.b)} ${when}.`;
+  toast(`${c.icon} ${msg}`);
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    if ((await LocalNotifications.checkPermissions()).display !== 'granted') return;
+    await LocalNotifications.schedule({ notifications: [{ id: 2000 + i * 3 + level, title: `${c.icon} Tope de ${c.name}`, body: msg }] });
+  } catch (e) { console.error(e); }
+}
+
 function render() {
   app.innerHTML = VIEWS[state.tab]();
+  setTimeout(checkBudgets, 0);
   $('#tabs').innerHTML = TABS.map(([k, label]) => `<button class="${state.tab === k ? 'on' : ''}" data-act="tab" data-tab="${k}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg><span>${label}</span></button>`).join('');
 }
 
@@ -833,6 +941,25 @@ const ACTIONS = {
     settingsSheet();
   },
   'app-settings': () => Noti.openAppSettings().catch(() => {}),
+  'kw-add': () => {
+    const w = $('#f-kw').value.trim(), cat = $('#f-kwcat').value;
+    if (w.length < 3) return toast('Escribe al menos 3 letras.');
+    const kw = (db.catKeywords ||= {});
+    for (const k of Object.keys(kw)) { kw[k] = kw[k].filter((x) => x.toLowerCase() !== w.toLowerCase()); if (!kw[k].length) delete kw[k]; }
+    (kw[cat] ||= []).push(w);
+    setKeywords(kw);
+    let n = 0;
+    for (const m of db.movements) if (m.amount < 0 && m.cat !== cat && !m.catSet && !db.rules[m.title.toLowerCase()] && kwMatch(m, w)) { m.cat = cat; n++; }
+    save(); render(); settingsSheet();
+    toast(n ? `Palabra añadida. ${n} ${n === 1 ? 'gasto pasa' : 'gastos pasan'} a ${CATS[cat].name}.` : 'Palabra añadida.');
+  },
+  'kw-del': (el) => {
+    const kw = db.catKeywords || {};
+    kw[el.dataset.cat] = (kw[el.dataset.cat] || []).filter((x) => x !== el.dataset.w);
+    if (!kw[el.dataset.cat].length) delete kw[el.dataset.cat];
+    setKeywords(kw); save(); settingsSheet();
+    toast('Palabra quitada. Los gastos ya clasificados no cambian.');
+  },
   'home-ask': homeSheet,
   'sp-period': (el) => { state.spPeriod = +el.dataset.i; render(); },
   'sp-cat': (el) => catDetail(el.dataset.cat),
@@ -889,6 +1016,9 @@ const ACTIONS = {
     const next = {};
     sheet.querySelectorAll('[data-bud]').forEach((i) => { const n = parseNum(i.value); if (n > 0) next[i.dataset.bud] = n; });
     db.budgets = next;
+    const monthly = {};
+    sheet.querySelectorAll('[data-budp]').forEach((s) => { if (s.value === 'm' && next[s.dataset.budp]) monthly[s.dataset.budp] = true; });
+    db.settings.budgetMonthly = monthly;
     save(); closeSheet(); render();
     toast('Topes guardados.');
   },
@@ -983,8 +1113,9 @@ const ACTIONS = {
     const name = $('#f-name').value.trim(), target = parseNum($('#f-target').value);
     if (!name || !target || target <= 0) return toast('Pon un nombre y una cantidad.');
     const d = state.draft;
-    if (d.id) Object.assign(db.goals.find((g) => g.id === d.id), { name, target, emoji: d.emoji });
-    else db.goals.push({ id: uid(), name, target, emoji: d.emoji, saved: 0 });
+    const due = $('#f-due').value || null;
+    if (d.id) Object.assign(db.goals.find((g) => g.id === d.id), { name, target, emoji: d.emoji, due });
+    else db.goals.push({ id: uid(), name, target, emoji: d.emoji, saved: 0, due });
     save(); closeSheet(); render();
   },
   goal: (el) => goalSheet(db.goals.find((g) => g.id === el.dataset.id)),
@@ -1007,6 +1138,7 @@ const ACTIONS = {
   },
   export: () => exportBackup().catch(() => toast('No se pudo exportar la copia.')),
   restore: () => $('#file-json').click(),
+  update: (el) => checkUpdate(el),
   wipe: () => { if (!confirm('Se borrarán todos los movimientos, nóminas y objetivos de este móvil. ¿Continuar?')) return; resetDb(); closeSheet(); state.tab = 'home'; render(); },
 };
 

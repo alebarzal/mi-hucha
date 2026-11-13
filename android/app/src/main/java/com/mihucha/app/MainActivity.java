@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ShareInPlugin.class);
         registerPlugin(BiometricPlugin.class);
         registerPlugin(BankNotiPlugin.class);
+        registerPlugin(UpdaterPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

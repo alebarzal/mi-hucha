@@ -1,0 +1,60 @@
+# Compila el APK en cada push a main y lo publica en la versión "latest",
+# de donde lo descarga el botón "Buscar actualización" de la app.
+name: APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Clave de firma
+        # La misma clave con la que se instaló la app, para que Android acepte la actualización.
+        env:
+          KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then echo "Falta el secreto DEBUG_KEYSTORE"; exit 1; fi
+          mkdir -p ~/.android
+          echo "$KEYSTORE" | base64 -d > ~/.android/debug.keystore
+
+      - name: Compilar
+        run: |
+          npm ci
+          npm run android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../MiHucha.apk
+
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest MiHucha.apk \
+            --title "Mi Hucha (último push)" \
+            --notes "Compilada a partir de ${GITHUB_SHA::7}: $(git log -1 --pretty=%s)" \
+            --target "$GITHUB_SHA" \
+            --latest

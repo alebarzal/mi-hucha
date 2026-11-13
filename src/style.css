@@ -271,3 +271,18 @@ i.irpf { background: #d9577a; }
 #tabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
 .maplink { color: var(--brand-2); font-weight: 700; }
+
+/* 1.10: topes mensuales, avisos, palabras clave */
+.budget input { width: 78px; }
+.budget select, .field select { min-height: 46px; border: 0; border-radius: 14px; background: var(--bg); color: var(--ink); padding: 0 8px; box-shadow: inset 0 0 0 1.5px var(--line); font-size: 13.5px; }
+.field select { min-height: 50px; font-size: 15px; width: 100%; }
+.budget-alert { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; }
+.note.over { background: color-mix(in srgb, var(--neg) 16%, var(--card)); color: var(--ink); }
+.kws { display: flex; flex-wrap: wrap; gap: 8px; }
+.kw { min-height: 38px; padding: 0 12px; border-radius: 999px; background: var(--soft); color: var(--brand-2); font-weight: 600; font-size: 14px; }
+.kw span { margin-left: 4px; opacity: 0.7; }
+.budget { gap: 10px; }
+.budget .bubble { width: 38px; height: 38px; font-size: 18px; }
+.budget input { width: 64px; padding: 0 10px; }
+.budget select { padding: 0 4px; }
+#tabs button { font-size: 10px; letter-spacing: -0.2px; }
