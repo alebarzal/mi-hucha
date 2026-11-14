@@ -3,21 +3,21 @@
 const KEY = 'mihucha.v1';
 
 export const CATS = {
-  nomina: { name: 'Nómina', icon: '💼', color: '#1f9d6b', income: true },
-  ingreso: { name: 'Otros ingresos', icon: '➕', color: '#3aa6a0', income: true },
-  bizum_in: { name: 'Bizum recibido', icon: '🤝', color: '#4f8fd9', income: true },
-  super: { name: 'Supermercado', icon: '🛒', color: '#e0863a' },
-  resta: { name: 'Bares y restaurantes', icon: '🍽️', color: '#d9577a' },
-  gasolina: { name: 'Gasolina', icon: '⛽', color: '#8a6fd1' },
-  compras: { name: 'Compras', icon: '🛍️', color: '#d1a13a' },
-  salud: { name: 'Salud', icon: '💊', color: '#3fae8c' },
-  mascota: { name: 'Mascota', icon: '🐾', color: '#b07a4a' },
-  ocio: { name: 'Ocio', icon: '🎮', color: '#5b7fe0' },
-  hogar: { name: 'Casa y facturas', icon: '🏠', color: '#7c8a99' },
-  transporte: { name: 'Transporte', icon: '🚌', color: '#4aa3c7' },
-  bizum_out: { name: 'Bizum enviado', icon: '💸', color: '#c76f5a' },
-  ahorro: { name: 'Ahorro', icon: '🐷', color: '#1f9d6b' },
-  otros: { name: 'Otros', icon: '📦', color: '#8d8f96' },
+  nomina: { name: 'Nómina', icon: 'briefcase', color: '#1f9d6b', income: true },
+  ingreso: { name: 'Otros ingresos', icon: 'plus-circle', color: '#3aa6a0', income: true },
+  bizum_in: { name: 'Bizum recibido', icon: 'arrow-in', color: '#4f8fd9', income: true },
+  super: { name: 'Supermercado', icon: 'cart', color: '#e0863a' },
+  resta: { name: 'Bares y restaurantes', icon: 'utensils', color: '#d9577a' },
+  gasolina: { name: 'Gasolina', icon: 'fuel', color: '#8a6fd1' },
+  compras: { name: 'Compras', icon: 'bag', color: '#d1a13a' },
+  salud: { name: 'Salud', icon: 'pill', color: '#3fae8c' },
+  mascota: { name: 'Mascota', icon: 'paw', color: '#b07a4a' },
+  ocio: { name: 'Ocio', icon: 'gamepad', color: '#5b7fe0' },
+  hogar: { name: 'Casa y facturas', icon: 'home', color: '#7c8a99' },
+  transporte: { name: 'Transporte', icon: 'bus', color: '#4aa3c7' },
+  bizum_out: { name: 'Bizum enviado', icon: 'send', color: '#c76f5a' },
+  ahorro: { name: 'Ahorro', icon: 'piggy', color: '#1f9d6b' },
+  otros: { name: 'Otros', icon: 'box', color: '#8d8f96' },
 };
 
 const PET = /zooplus|tiendanimal|kiwoko|veterinari|protectora/i;
@@ -81,7 +81,7 @@ function upgrade110(d) {
   if (d.budgets.mascota == null) d.budgets.mascota = 35;
   d.settings.budgetMonthly = { ...(d.settings.budgetMonthly || {}), mascota: true };
   d.goals = d.goals || [];
-  if (!d.goals.some((g) => /arenero/i.test(g.name))) d.goals.push({ id: 'g-arenero', name: 'Arenero automático', target: 225, emoji: '🐱', saved: 0, due: '2027-04-13' });
+  if (!d.goals.some((g) => /arenero/i.test(g.name))) d.goals.push({ id: 'g-arenero', name: 'Arenero automático', target: 225, icon: 'cat', saved: 0, due: '2027-04-13' });
   for (const m of d.movements) {
     if (m.amount < 0 && !m.catSet && !(d.rules || {})[m.title.toLowerCase()] && PET.test(m.desc || '')) m.cat = 'mascota';
   }

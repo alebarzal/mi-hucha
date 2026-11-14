@@ -10,10 +10,10 @@ export const TAB_DEFS = {
 };
 
 export const HOME_DEFS = {
-  now: ['💼', 'Desde tu última nómina', 'Cobrado, gastado y cuánto puedes gastar al día'],
-  spend: ['📊', 'En qué se va el dinero', 'Gasto por categoría y topes'],
-  last: ['🧾', 'Últimos movimientos', 'Los cinco más recientes'],
-  goals: ['🎯', 'Tus objetivos', 'Cómo van tus objetivos de ahorro'],
+  now: ['briefcase', 'Desde tu última nómina', 'Cobrado, gastado y cuánto puedes gastar al día'],
+  spend: ['chart', 'En qué se va el dinero', 'Gasto por categoría y topes'],
+  last: ['list', 'Últimos movimientos', 'Los cinco más recientes'],
+  goals: ['target', 'Tus objetivos', 'Cómo van tus objetivos de ahorro'],
 };
 const HOME_DEFAULT = [['now', true], ['spend', true], ['last', true], ['goals', false]];
 

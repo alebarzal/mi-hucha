@@ -2,6 +2,14 @@
 // La primera entrada es la versión actual; añade una nueva arriba en cada versión.
 export const CHANGELOG = [
   {
+    v: '1.16',
+    date: '2026-11-14',
+    items: [
+      ['layout', 'Iconos propios en toda la app', 'Categorías, objetivos, tarjetas y avisos usan ahora un juego de iconos de línea a juego, en lugar de emojis.'],
+      ['target', 'Nuevos iconos para objetivos', 'Elige entre doce iconos; los objetivos que ya tenías conservan el suyo.'],
+    ],
+  },
+  {
     v: '1.15',
     date: '2026-11-14',
     items: [

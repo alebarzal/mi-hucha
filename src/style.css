@@ -176,7 +176,8 @@ i.irpf { background: #d9577a; }
 .col small { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
 .empty { background: var(--card); border-radius: var(--r); padding: 36px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: var(--shadow); }
-.empty-ico { font-size: 44px; }
+.empty-ico { width: 72px; height: 72px; border-radius: 24px; display: grid; place-items: center; background: var(--soft); color: var(--brand-2); }
+.empty-ico .i { width: 36px; height: 36px; stroke-width: 1.6; }
 .empty p { color: var(--muted); font-size: 14.5px; margin-bottom: 8px; }
 .empty .btn { flex: none; }
 
@@ -410,3 +411,26 @@ i.irpf { background: #d9577a; }
 /* iconos de las novedades */
 .news-ico { color: var(--brand-2); }
 .news-ico svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 1.16: iconos propios en lugar de emojis */
+.i { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.2em; }
+.bubble { color: var(--c); }
+.bubble .i { width: 22px; height: 22px; }
+.ih { display: flex; align-items: center; gap: 8px; }
+.ih .i { color: var(--brand-2); width: 22px; height: 22px; }
+.tip .lead { color: var(--brand-2); width: 19px; height: 19px; vertical-align: -4px; margin-right: 6px; }
+.i.in { width: 1em; height: 1em; margin-right: 3px; color: var(--brand-2); vertical-align: -0.15em; }
+.btn .i { width: 18px; height: 18px; margin-right: 6px; stroke-width: 2.2; }
+.chip { display: inline-flex; align-items: center; gap: 6px; }
+.chip .i { width: 16px; height: 16px; }
+.catopt .i { width: 20px; height: 20px; color: var(--brand-2); }
+.kw { display: inline-flex; align-items: center; gap: 5px; }
+.kw .i { width: 15px; height: 15px; }
+.emoji { display: grid; place-items: center; color: var(--muted); }
+.emoji .i { width: 24px; height: 24px; }
+.emoji.on { color: var(--brand-2); }
+.mini-goal .i { color: var(--brand-2); margin-right: 2px; }
+.budget-alert b .i { margin-right: 4px; }
+.news-ico .i { width: 21px; height: 21px; }
+.dnd-ico .i { width: 22px; height: 22px; }
+#fab svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }

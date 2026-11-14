@@ -4,6 +4,7 @@ import { detectType, parseBank, parsePayslip } from './parser.js';
 import { forecast, LIMIT_ONE_PAYER, LIMIT_TWO_PAYERS, SECOND_PAYER_MIN } from './tax.js';
 import { parseNoti } from './noti.js';
 import { CHANGELOG } from './changelog.js';
+import { icon, GOAL_ICONS, goalIcon } from './icons.js';
 import { TAB_DEFS, HOME_DEFS, tabLayout, homeLayout, enableDrag } from './layout.js';
 import { placeOf, placeStats, suggestHome, detectTrips, tripSummary, tripName, norm } from './trips.js';
 
@@ -92,13 +93,13 @@ function tabButtons(active, layout = tabLayout(db.settings)) {
 function movRow(m) {
   const c = CATS[m.cat] || CATS.otros;
   return `<button class="row" data-act="mov" data-id="${esc(m.id)}">
-    <span class="bubble" style="--c:${c.color}">${c.icon}</span>
-    <span class="row-main"><b>${esc(m.title)}</b><small>${m.pending && m.geo?.locality ? '📍 ' + esc(m.geo.locality) + ' · ' : ''}${esc(m.note || c.name)}</small></span>
+    <span class="bubble" style="--c:${c.color}">${icon(c.icon)}</span>
+    <span class="row-main"><b>${esc(m.title)}</b><small>${m.pending && m.geo?.locality ? icon('pin', 'in') + esc(m.geo.locality) + ' · ' : ''}${esc(m.note || c.name)}</small></span>
     <span class="amt ${m.amount > 0 ? 'pos' : ''}">${signed(m.amount)}</span>
   </button>`;
 }
 
-const emptyState = (title, text) => `<div class="empty"><div class="empty-ico">📄</div><b>${title}</b><p>${text}</p><button class="btn" data-act="import">Importar PDF</button></div>`;
+const emptyState = (title, text) => `<div class="empty"><div class="empty-ico">${icon('doc')}</div><b>${title}</b><p>${text}</p><button class="btn" data-act="import">Importar PDF</button></div>`;
 
 // ---------- Inicio ----------
 function home() {
@@ -113,7 +114,7 @@ function home() {
     <p>Saldo disponible</p>
     <div class="big">${eur(balanceInfo().value)}</div>
     <small>${heroSub()}${db.account.iban ? ' · cuenta ····' + esc(db.account.iban.slice(-4)) : ''}</small>
-    <button class="btn light" data-act="import">＋ Importar PDF</button>
+    <button class="btn light" data-act="import">${icon('plus')} Importar PDF</button>
   </section>`;
 
   let now = '';
@@ -140,7 +141,7 @@ function home() {
       </div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <p class="hint">Has gastado el ${pct} % de lo cobrado.${days != null ? (days > 0 ? ` Próxima nómina hacia el <b>${short(next)}</b>, faltan ${days} días.` : ' La próxima nómina debería llegar estos días.') : ''}</p>
-      ${tip ? `<p class="tip">💡 ${tip}</p>` : ''}
+      ${tip ? `<p class="tip">${icon('bulb', 'lead')}${tip}</p>` : ''}
     </section>`;
   }
 
@@ -156,7 +157,7 @@ function home() {
     ${cats.length ? cats.map(([k, v]) => {
       const c = CATS[k] || CATS.otros;
       return `<button class="cat" data-act="cat-filter" data-cat="${k}">
-        <span class="bubble" style="--c:${c.color}">${c.icon}</span>
+        <span class="bubble" style="--c:${c.color}">${icon(c.icon)}</span>
         <span class="cat-main"><span class="cat-top"><b>${c.name}</b><span>${eur(v)}${db.budgets[k] ? ` <small>${budgetUse(k).monthly ? '· ' + budTxt(k) : 'de ' + eur0(db.budgets[k])}</small>` : ''}</span></span>
         <span class="bar thin"><i style="${barStyle(k, v, max, c.color)}"></i></span></span>
       </button>`;
@@ -168,25 +169,25 @@ function home() {
     <div class="card-head pad"><h2>Últimos movimientos</h2><button class="link" data-act="tab" data-tab="movs">Ver todos</button></div>
     ${db.movements.slice(0, 5).map(movRow).join('')}
   </section>`;
-  const remind = db.settings.remind === undefined ? `<section class="card"><div class="card-head"><h2>🔔 ¿Te aviso cuando toque?</h2></div>
+  const remind = db.settings.remind === undefined ? `<section class="card"><div class="card-head"><h2 class="ih">${icon('bell')} ¿Te aviso cuando toque?</h2></div>
     <p class="hint">Un recordatorio si llevas 15 días sin importar el extracto y otro al día siguiente de cobrar.</p>
     <div class="actions"><button class="btn" data-act="remind" data-on="1">Activar avisos</button><button class="btn ghost" data-act="remind" data-on="0">No, gracias</button></div></section>` : '';
   const askHome = !db.settings.home?.length && placeStats(db).length ? askHomeCard() : '';
   const alerts = Object.keys(db.budgets).map((k) => [k, budgetUse(k)]).filter(([, u]) => u && u.r >= 0.8).map(([k, u]) => {
     const c = CATS[k] || CATS.otros;
-    return `<button class="note budget-alert ${u.r >= 1 ? 'over' : ''}" data-act="cat-filter" data-cat="${k}"><b>${c.icon} ${u.r >= 1 ? 'Te has pasado del tope de' : 'Cerca del tope de'} ${c.name}</b>
+    return `<button class="note budget-alert ${u.r >= 1 ? 'over' : ''}" data-act="cat-filter" data-cat="${k}"><b>${icon(c.icon)} ${u.r >= 1 ? 'Te has pasado del tope de' : 'Cerca del tope de'} ${c.name}</b>
       <span>${eur(u.spent)} de ${eur0(u.b)} ${u.monthly ? 'este mes' : 'desde la última nómina'} · ${Math.round(u.r * 100)} %</span></button>`;
   }).join('');
-  const upd = db.settings.updAvail && db.settings.updAvail !== __BUILD_SHA__ ? `<section class="card"><div class="card-head"><h2>⬆️ Hay una versión nueva</h2>${updInfo().v ? `<span class="tag">${esc(updInfo().v)}</span>` : ''}</div>
+  const upd = db.settings.updAvail && db.settings.updAvail !== __BUILD_SHA__ ? `<section class="card"><div class="card-head"><h2 class="ih">${icon('download')} Hay una versión nueva</h2>${updInfo().v ? `<span class="tag">${esc(updInfo().v)}</span>` : ''}</div>
     <p class="hint">${updInfo().text ? esc(updInfo().text.charAt(0).toUpperCase() + updInfo().text.slice(1)) + '. ' : ''}Se instala encima y tus datos se mantienen.</p>
     <div class="actions"><button class="btn" data-act="update">Actualizar ahora</button></div></section>` : '';
   const lb = db.settings.lastBackup;
   const snoozed = db.settings.backupSnooze && dayDiff(db.settings.backupSnooze, todayIso()) < 14;
-  const backup = db.movements.length >= 20 && !snoozed && (!lb || dayDiff(lb, todayIso()) > 30) ? `<section class="card"><div class="card-head"><h2>💾 ${lb ? 'Toca hacer una copia' : 'Aún no tienes copia de seguridad'}</h2></div>
+  const backup = db.movements.length >= 20 && !snoozed && (!lb || dayDiff(lb, todayIso()) > 30) ? `<section class="card"><div class="card-head"><h2 class="ih">${icon('save')} ${lb ? 'Toca hacer una copia' : 'Aún no tienes copia de seguridad'}</h2></div>
     <p class="hint">${lb ? `La última es de ${daysAgo(lb)}.` : 'Tus datos solo están en este móvil.'} Guárdala en Drive o envíatela por correo para no perder nada.</p>
     <div class="actions"><button class="btn" data-act="export">Hacer copia</button><button class="btn ghost" data-act="backup-later">Más tarde</button></div></section>` : '';
   const goalsCard = db.goals.length ? `<section class="card"><div class="card-head"><h2>Tus objetivos</h2><button class="link" data-act="tab" data-tab="savings">Ver todos</button></div>
-    ${db.goals.slice(0, 3).map((g) => { const pct = Math.min(100, Math.round((g.saved / g.target) * 100)); return `<button class="mini-goal" data-act="goal" data-id="${g.id}"><span class="cat-top"><b>${g.emoji} ${esc(g.name)}</b><span>${eur0(g.saved)} <small>de ${eur0(g.target)}</small></span></span><span class="bar thin"><i style="width:${pct}%"></i></span></button>`; }).join('')}</section>`
+    ${db.goals.slice(0, 3).map((g) => { const pct = Math.min(100, Math.round((g.saved / g.target) * 100)); return `<button class="mini-goal" data-act="goal" data-id="${g.id}"><span class="cat-top"><b>${icon(goalIcon(g))} ${esc(g.name)}</b><span>${eur0(g.saved)} <small>de ${eur0(g.target)}</small></span></span><span class="bar thin"><i style="width:${pct}%"></i></span></button>`; }).join('')}</section>`
     : `<section class="card"><div class="card-head"><h2>Tus objetivos</h2></div><p class="hint">Aún no tienes objetivos de ahorro.</p><button class="btn ghost wide" data-act="goal-new">＋ Crear objetivo</button></section>`;
   const parts = { now, spend, last, goals: goalsCard };
   const body = homeLayout(db.settings).filter((c) => c.on).map((c) => parts[c.k]).join('');
@@ -222,16 +223,16 @@ function movs() {
   if (!db.movements.length) return `<header class="top"><h1>Movimientos</h1></header>` + emptyState('Aún no hay movimientos', 'Importa el extracto en PDF de tu banco para verlos aquí.');
   const used = [...new Set(db.movements.map((m) => m.cat))];
   const chip = (k, label) => `<button class="chip ${state.filter === k ? 'on' : ''}" data-act="filter" data-f="${k}">${label}</button>`;
-  return `<header class="top"><h1>Movimientos</h1><button class="btn small" data-act="import">＋ PDF</button></header>
+  return `<header class="top"><h1>Movimientos</h1><button class="btn small" data-act="import">${icon('plus')} PDF</button></header>
     <input class="search" id="q" type="search" placeholder="Buscar comercio, persona, importe…" value="${esc(state.query)}" />
-    <div class="chips scroll">${chip('all', 'Todos')}${chip('in', 'Ingresos')}${chip('out', 'Gastos')}${used.map((k) => chip(k, `${CATS[k].icon} ${CATS[k].name}`)).join('')}</div>
+    <div class="chips scroll">${chip('all', 'Todos')}${chip('in', 'Ingresos')}${chip('out', 'Gastos')}${used.map((k) => chip(k, `${icon(CATS[k].icon)} ${CATS[k].name}`)).join('')}</div>
     <div id="mov-list">${movList()}</div>`;
 }
 
 // ---------- Nóminas ----------
 function payroll() {
   const pays = paydays().reverse();
-  const head = `<header class="top"><h1>Nóminas</h1><button class="btn small" data-act="import">＋ PDF</button></header>`;
+  const head = `<header class="top"><h1>Nóminas</h1><button class="btn small" data-act="import">${icon('plus')} PDF</button></header>`;
   if (!pays.length && !db.payslips.length) return head + emptyState('Sin nóminas todavía', 'Importa una nómina en PDF o el extracto del banco: los ingresos de nómina se detectan solos.');
   const total = pays.reduce((a, m) => a + m.amount, 0);
   const avg = pays.length ? total / pays.length : 0;
@@ -247,14 +248,14 @@ function payroll() {
   const cards = pays.map((m) => {
     const s = slipFor(m);
     return `<button class="pay" data-act="${s ? 'slip' : 'slip-missing'}" data-id="${esc(s ? s.id : m.id)}">
-      <span class="pay-top"><span><small>Cobrada el ${short(m.date)}</small><b>${eur(m.amount)}</b></span><span class="bubble" style="--c:${CATS.nomina.color}">💼</span></span>
+      <span class="pay-top"><span><small>Cobrada el ${short(m.date)}</small><b>${eur(m.amount)}</b></span><span class="bubble" style="--c:${CATS.nomina.color}">${icon('briefcase')}</span></span>
       ${s ? `<span class="pay-sub">Nómina de ${slipMonth(s)}${s.hours ? ' · ' + s.hours + ' h' : ''} · bruto ${eur(s.gross)}</span>
         <span class="split"><i class="net" style="flex:${s.net}"></i><i class="ss" style="flex:${s.ss || 0}"></i><i class="irpf" style="flex:${s.irpf || 0}"></i></span>`
       : `<span class="pay-sub muted">Sin desglose. Toca para añadir la nómina.</span>`}
     </button>`;
   }).join('');
   const orphans = db.payslips.filter((s) => !pays.some((m) => Math.abs(s.net - m.amount) < 0.01)).map((s) => `<button class="pay" data-act="slip" data-id="${esc(s.id)}">
-      <span class="pay-top"><span><small>Nómina de ${slipMonth(s)}</small><b>${eur(s.net)}</b></span><span class="bubble" style="--c:${CATS.nomina.color}">💼</span></span>
+      <span class="pay-top"><span><small>Nómina de ${slipMonth(s)}</small><b>${eur(s.net)}</b></span><span class="bubble" style="--c:${CATS.nomina.color}">${icon('briefcase')}</span></span>
       <span class="pay-sub muted">Aún no aparece el ingreso en el banco.</span></button>`).join('');
   return head + tiles + warn + `<h3 class="day">Tus nóminas</h3>` + orphans + cards +
     `<div class="actions"><button class="btn" data-act="import">Importar nómina PDF</button><button class="btn ghost" data-act="slip-new">Añadir a mano</button></div>`;
@@ -320,21 +321,20 @@ function savings() {
     <div class="cols">${shown.map((p) => `<div class="col"><span class="val">${eur0(p.saved)}</span><i class="${p.saved < 0 ? 'neg' : ''}" style="height:${Math.max(4, (Math.abs(p.saved) / max) * 100)}%"></i><small>${short(p.from)}${p.to ? '' : ' ·'}</small></div>`).join('')}</div>
     <p class="hint">Ingresos menos gastos entre una nómina y la siguiente.${shown.some((p) => !p.to) ? ' El periodo marcado con · sigue abierto.' : ''}</p></section>` : '';
   const lastPay = paydays().pop();
-  const tip = lastPay ? `<p class="tip">💡 El ${db.settings.savePct} % de tu última nómina son <b>${eur(lastPay.amount * db.settings.savePct / 100)}</b>. Apártalos nada más cobrar y repártelos entre tus objetivos.</p>` : '';
+  const tip = lastPay ? `<p class="tip">${icon('bulb', 'lead')}El ${db.settings.savePct} % de tu última nómina son <b>${eur(lastPay.amount * db.settings.savePct / 100)}</b>. Apártalos nada más cobrar y repártelos entre tus objetivos.</p>` : '';
   const avg = done.length ? done.reduce((a, p) => a + p.saved, 0) / done.length : 0;
   const goals = db.goals.map((g) => {
     const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
     const left = g.target - g.saved;
-    const eta = left <= 0 ? '¡Conseguido! 🎉' : g.due ? dueTxt(g) : avg > 0 ? `A tu ritmo, en unos ${Math.ceil(left / avg)} meses` : `Faltan ${eur(left)}`;
-    return `<button class="goal" data-act="goal" data-id="${g.id}"><span class="goal-top"><span class="bubble" style="--c:#1f9d6b">${g.emoji}</span><span class="row-main"><b>${esc(g.name)}</b><small>${eta}</small></span><span class="pct">${pct} %</span></span>
+    const eta = left <= 0 ? '¡Conseguido!' : g.due ? dueTxt(g) : avg > 0 ? `A tu ritmo, en unos ${Math.ceil(left / avg)} meses` : `Faltan ${eur(left)}`;
+    return `<button class="goal" data-act="goal" data-id="${g.id}"><span class="goal-top"><span class="bubble" style="--c:#1f9d6b">${icon(goalIcon(g))}</span><span class="row-main"><b>${esc(g.name)}</b><small>${eta}</small></span><span class="pct">${pct} %</span></span>
       <span class="bar"><i style="width:${pct}%"></i></span><span class="goal-sub"><span>${eur(g.saved)}</span><span>de ${eur(g.target)}</span></span></button>`;
   }).join('');
   return head + hero + chart + `<h3 class="day">Objetivos</h3>` +
     (goals || `<section class="card"><p class="hint">Crea tu primer objetivo: un fondo de emergencia de 3 meses de gastos es un buen comienzo.</p></section>`) +
-    tip + `<div class="actions"><button class="btn" data-act="goal-new">＋ Nuevo objetivo</button></div>`;
+    tip + `<div class="actions"><button class="btn" data-act="goal-new">${icon('plus')} Nuevo objetivo</button></div>`;
 }
 
-const EMOJIS = ['🛟', '✈️', '🏠', '🚗', '💻', '🎓', '🎁', '🏖️', '💍', '🐷', '🐱'];
 const fmtDue = (iso) => { const d = toDate(iso); return `${d.getDate()} ${MES[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''}`; };
 function monthsTo(iso) {
   const a = toDate(todayIso()), b = toDate(iso);
@@ -349,17 +349,17 @@ function dueTxt(g) {
   return m < 1 ? `Para el ${fmtDue(g.due)}: faltan ${eur(left)}` : `Para el ${fmtDue(g.due)}: aparta ${eur0(Math.ceil(left / m))} al mes`;
 }
 function goalForm(g) {
-  state.draft = g ? { ...g } : { emoji: '🛟' };
+  state.draft = g ? { ...g, icon: goalIcon(g) } : { icon: 'lifebuoy' };
   openSheet(`<h2>${g ? 'Editar objetivo' : 'Nuevo objetivo'}</h2>
     <label class="field"><span>Nombre</span><input id="f-name" type="text" placeholder="Fondo de emergencia" value="${esc(g?.name || '')}" /></label>
     <label class="field"><span>Cantidad a conseguir (€)</span><input id="f-target" type="text" inputmode="decimal" placeholder="3000" value="${g ? String(g.target).replace('.', ',') : ''}" /></label>
     <label class="field"><span>Fecha objetivo (opcional)</span><input id="f-due" type="date" min="${todayIso()}" value="${g?.due || ''}" /></label>
-    <div class="field"><span>Icono</span><div class="emojis">${EMOJIS.map((e) => `<button class="emoji ${e === state.draft.emoji ? 'on' : ''}" data-act="emoji" data-e="${e}">${e}</button>`).join('')}</div></div>
+    <div class="field"><span>Icono</span><div class="emojis">${GOAL_ICONS.map((e) => `<button class="emoji ${e === state.draft.icon ? 'on' : ''}" data-act="emoji" data-e="${e}" aria-label="${e}">${icon(e)}</button>`).join('')}</div></div>
     <div class="actions"><button class="btn" data-act="goal-save">Guardar</button></div>`);
 }
 function goalSheet(g) {
   const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
-  openSheet(`<h2>${g.emoji} ${esc(g.name)}</h2>
+  openSheet(`<h2 class="ih">${icon(goalIcon(g))} ${esc(g.name)}</h2>
     <div class="big center">${eur(g.saved)}</div><p class="hint center">de ${eur(g.target)} · ${pct} %${g.due ? '<br />' + (dueTxt(g) || 'Fecha objetivo: ' + fmtDue(g.due)) : ''}</p><div class="bar"><i style="width:${pct}%"></i></div>
     <label class="field"><span>Cantidad (€)</span><input id="f-amount" type="text" inputmode="decimal" placeholder="50" /></label>
     <div class="chips">${[...new Set([10, 20, 50, g.due && g.target > g.saved && monthsTo(g.due) >= 1 ? Math.ceil((g.target - g.saved) / monthsTo(g.due)) : null, g.target > g.saved ? +(g.target - g.saved).toFixed(2) : null].filter(Boolean))].map((v) => `<button class="chip" data-act="amt" data-v="${v}">${eur(v).replace(',00', '')}</button>`).join('')}</div>
@@ -372,7 +372,7 @@ function geoBlock(g) {
   const name = [g.address, g.locality].filter(Boolean).join(', ');
   const acc = g.acc ? ' · precisión ~' + Math.round(g.acc) + ' m' : '';
   const old = g.age > 120 ? ' · posición de hace ' + Math.round(g.age / 60) + ' min' : '';
-  return `<p class="tip">📍 <b>${name ? esc(name) : 'Ubicación guardada'}</b>${acc}${old}<br />
+  return `<p class="tip">${icon('pin', 'lead')}<b>${name ? esc(name) : 'Ubicación guardada'}</b>${acc}${old}<br />
     <a class="maplink" href="https://www.google.com/maps?q=${g.lat},${g.lon}" target="_blank" rel="noopener">Ver en el mapa</a><br />
     <small class="muted">Es dónde estabas cuando llegó el aviso; no tiene por qué ser el comercio.</small></p>`;
 }
@@ -383,20 +383,20 @@ function movSheet(m) {
   const options = Object.entries(CATS).filter(([, v]) => !!v.income === m.amount > 0 || (m.amount < 0 && !v.income));
   openSheet(`<h2>${esc(m.title)}</h2><p class="hint">${long(m.date)}${m.note ? ' · ' + esc(m.note) : ''}</p>
     <div class="big center ${m.amount > 0 ? 'pos' : ''}">${signed(m.amount)}</div>
-    <p class="hint center">${c.icon} ${c.name}${m.balance != null ? ' · saldo después ' + eur(m.balance) : ''}</p>
-    ${m.raw ? `<p class="tip">🔔 «${esc(m.raw)}»</p>` : ''}
+    <p class="hint center">${icon(c.icon)} ${c.name}${m.balance != null ? ' · saldo después ' + eur(m.balance) : ''}</p>
+    ${m.raw ? `<p class="tip">${icon('bell', 'lead')}«${esc(m.raw)}»</p>` : ''}
     ${m.geo ? geoBlock(m.geo) : ''}
     ${m.manual || m.pending ? `<div class="actions"><button class="btn ghost" data-act="mov-edit" data-id="${esc(m.id)}">Editar</button><button class="btn danger" data-act="mov-del" data-id="${esc(m.id)}">${m.pending ? 'Descartar aviso' : 'Eliminar apunte'}</button></div>` : ''}
     <h3>Cambiar categoría</h3>
-    <div class="catgrid">${options.map(([k, v]) => `<button class="catopt ${k === m.cat ? 'on' : ''}" data-act="setcat" data-id="${esc(m.id)}" data-cat="${k}"><span>${v.icon}</span>${v.name}</button>`).join('')}</div>
+    <div class="catgrid">${options.map(([k, v]) => `<button class="catopt ${k === m.cat ? 'on' : ''}" data-act="setcat" data-id="${esc(m.id)}" data-cat="${k}"><span>${icon(v.icon)}</span>${v.name}</button>`).join('')}</div>
     <p class="hint">Se aplicará a todos los movimientos de «${esc(m.title)}», también a los que importes más adelante.</p>`);
 }
 
 // ---------- palabras clave ----------
 function kwSection() {
   const kw = db.catKeywords || {};
-  const chips = Object.entries(kw).flatMap(([cat, ws]) => ws.map((w) => `<button class="kw" data-act="kw-del" data-cat="${cat}" data-w="${esc(w)}" aria-label="Quitar ${esc(w)}">${CATS[cat]?.icon || ''} ${esc(w)} <span>×</span></button>`)).join('');
-  const opts = Object.entries(CATS).filter(([k, v]) => !v.income && k !== 'ahorro').map(([k, v]) => `<option value="${k}" ${k === 'mascota' ? 'selected' : ''}>${v.icon} ${v.name}</option>`).join('');
+  const chips = Object.entries(kw).flatMap(([cat, ws]) => ws.map((w) => `<button class="kw" data-act="kw-del" data-cat="${cat}" data-w="${esc(w)}" aria-label="Quitar ${esc(w)}">${CATS[cat] ? icon(CATS[cat].icon) : ''} ${esc(w)} <span>×</span></button>`)).join('');
+  const opts = Object.entries(CATS).filter(([k, v]) => !v.income && k !== 'ahorro').map(([k, v]) => `<option value="${k}" ${k === 'mascota' ? 'selected' : ''}>${v.name}</option>`).join('');
   return `<p class="hint">Si el comercio o el concepto contiene la palabra, el gasto va a esa categoría. Se suman a las reglas que ya trae la app (Zooplus, Tiendanimal, Kiwoko, «veterinari» y «protectora» van a Mascota).</p>
     ${chips ? `<div class="kws">${chips}</div>` : ''}
     <div class="grid2"><label class="field"><span>Palabra</span><input id="f-kw" type="text" placeholder="arenero, peluquería…" /></label>
@@ -410,7 +410,7 @@ function settingsSheet() {
     <label class="field"><span>Porcentaje de la nómina que quieres ahorrar</span><input id="f-pct" type="text" inputmode="numeric" value="${db.settings.savePct}" /></label>
     <div class="actions"><button class="btn" data-act="pct-save">Guardar</button></div>
     <h3>Aspecto</h3>
-    <button class="row news-link" data-act="layout"><span class="bubble" style="--c:#4f8fd9">🧩</span><span class="row-main"><b>Personalizar barra e Inicio</b><small>Ordena y oculta pestañas y tarjetas. También manteniendo pulsada la barra</small></span><span class="chev">›</span></button>
+    <button class="row news-link" data-act="layout"><span class="bubble" style="--c:#4f8fd9">${icon('layout')}</span><span class="row-main"><b>Personalizar barra e Inicio</b><small>Ordena y oculta pestañas y tarjetas. También manteniendo pulsada la barra</small></span><span class="chev">›</span></button>
     <div class="seg three">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, l]) => `<button class="${(db.settings.theme || 'auto') === k ? 'on' : ''}" data-act="theme" data-t="${k}">${l}</button>`).join('')}</div>
     <label class="check"><input type="checkbox" data-act="hide-money" ${db.settings.hideMoney ? 'checked' : ''} /><span class="row-main"><b>Ocultar importes</b><small>Los difumina; también con el ojo de Inicio</small></span></label>
     <h3>Palabras clave de categorías</h3>
@@ -438,7 +438,7 @@ function settingsSheet() {
     <p class="hint">${db.settings.remind ? 'Activados: te aviso a los 15 días sin importar y al día siguiente de cobrar.' : 'Desactivados.'}</p>
     <div class="actions"><button class="btn ghost" data-act="remind" data-on="${db.settings.remind ? 0 : 1}">${db.settings.remind ? 'Desactivar avisos' : 'Activar avisos'}</button></div>
     <h3>Actualizar</h3>
-    <button class="row news-link" data-act="news"><span class="bubble" style="--c:#1f9d6b">📰</span><span class="row-main"><b>Novedades</b><small>Lo nuevo de la versión ${__APP_VERSION__} y de las anteriores</small></span><span class="chev">›</span></button>
+    <button class="row news-link" data-act="news"><span class="bubble" style="--c:#1f9d6b">${icon('news')}</span><span class="row-main"><b>Novedades</b><small>Lo nuevo de la versión ${__APP_VERSION__} y de las anteriores</small></span><span class="chev">›</span></button>
     <p class="hint">Versión ${__APP_VERSION__}${__BUILD_SHA__ ? ` · ${__BUILD_SHA__.slice(0, 7)}` : ''}. Descarga la última versión subida a GitHub y la instala encima, sin perder tus datos.</p>
     <label class="check"><input type="checkbox" data-act="upd-auto" ${db.settings.updAuto === false ? '' : 'checked'} /><span class="row-main"><b>Avisarme de versiones nuevas</b><small>Lo comprueba cada vez que abres la app</small></span></label>
     <div class="actions"><button class="btn ghost" data-act="update">Buscar actualización</button></div>
@@ -533,7 +533,7 @@ function budgetSheet() {
   openSheet(`<h2>Topes de gasto</h2>
     <p class="hint">Lo máximo que quieres gastar en cada categoría, entre una nómina y la siguiente o por mes natural. Te aviso al llegar al 80 % y al pasarte. Deja en blanco las que no quieras controlar.</p>
     ${Object.entries(CATS).filter(([k, v]) => !v.income && k !== 'ahorro').map(([k, v]) => `<label class="budget">
-      <span class="bubble" style="--c:${v.color}">${v.icon}</span>
+      <span class="bubble" style="--c:${v.color}">${icon(v.icon)}</span>
       <span class="row-main"><b>${v.name}</b><small>${avg(k) ? 'Sueles gastar ' + eur0(avg(k)) : 'Sin gasto habitual'}</small></span>
       <input data-bud="${k}" type="text" inputmode="decimal" placeholder="—" value="${db.budgets[k] ? String(db.budgets[k]).replace('.', ',') : ''}" />
       <select data-budp="${k}" aria-label="Periodo del tope"><option value="p">/nóm.</option><option value="m" ${db.settings.budgetMonthly?.[k] ? 'selected' : ''}>/mes</option></select></label>`).join('')}
@@ -552,7 +552,7 @@ function taxCard() {
   if (!f) return '';
   const h = taxHeadline(f), n = taxHeadline(f.next);
   return `<button class="pay" data-act="tax">
-    <span class="pay-top"><span><small>Previsión de la renta ${f.year}</small><b class="mid ${h.cls}">${h.t}</b></span><span class="bubble" style="--c:#d1a13a">🧾</span></span>
+    <span class="pay-top"><span><small>Previsión de la renta ${f.year}</small><b class="mid ${h.cls}">${h.t}</b></span><span class="bubble" style="--c:#d1a13a">${icon('receipt')}</span></span>
     <span class="pay-sub">Bruto estimado del año: ${eur0(f.gross)} · te retienen el ${pctTxt(f.pct)} %</span>
     <span class="pay-sub">Si trabajas todo ${f.next.year}: ${n.t.toLowerCase()}${!f.next.obliged && f.next.result > 0 ? `, aunque si declarases serían unos ${eur0(f.next.result)} a pagar` : ''}. Toca para ver el detalle.</span>
   </button>`;
@@ -581,7 +581,7 @@ function taxSheet() {
     ${ln('Impuesto estimado', eur(x.quota))}
     ${ln(`Retenciones al ${pctTxt(f.pct)} %`, '−' + eur(x.withheld))}
     ${ln(x.result > 0 ? 'Diferencia a pagar' : 'Diferencia a devolver', eur(Math.abs(x.result)), 'sum')}
-    <p class="tip">💡 ${x.obliged
+    <p class="tip">${icon('bulb', 'lead')}${x.obliged
       ? `Tendrías que declarar. Para que no te salga a pagar, la retención debería rondar el <b>${pctTxt(x.neededPct)} %</b>.`
       : x.result > 0
         ? `Con un solo pagador y menos de ${eur0(LIMIT_ONE_PAYER)} brutos no tendrías que declarar ni pagar esa diferencia. Pero si en el año cobras más de ${eur0(SECOND_PAYER_MIN)} de un segundo pagador (otra empresa, el paro), el límite baja a ${eur0(LIMIT_TWO_PAYERS)} y sí te tocaría: unos <b>${eur0(x.result)}</b>. Para evitarlo, la retención debería rondar el <b>${pctTxt(x.neededPct)} %</b>.`
@@ -802,7 +802,7 @@ function notiDiag() {
   if (!Noti || !native.noti) return '';
   const log = db.notiLog || [];
   return `<p class="hint"><b>Diagnóstico.</b> Notificaciones de apps de banco vistas: ${native.seen}${native.lastSeen ? ' (última: ' + hhmm(native.lastSeen) + ')' : ''}. ${native.seen ? '' : 'Si sigue en 0 después de recibir un aviso del banco, Android no se los está pasando a la app.'}</p>
-    ${log.map((l) => `<div class="diag"><small>${hhmm(l.time)} · <b>${esc(l.res)}</b>${l.geo ? ' · 📍 ' + esc(l.geo) : ''}</small><span>${esc(l.text)}</span></div>`).join('')}`;
+    ${log.map((l) => `<div class="diag"><small>${hhmm(l.time)} · <b>${esc(l.res)}</b>${l.geo ? ' · ' + esc(l.geo) : ''}</small><span>${esc(l.text)}</span></div>`).join('')}`;
 }
 async function takeNotis() {
   if (!Noti) return;
@@ -856,7 +856,7 @@ function geoSection() {
 // ---------- lugares y viajes ----------
 const placeLabel = (p) => p.name + (p.country !== 'ES' ? ` · ${p.countryName}` : '');
 const range = (from, to) => (from === to ? short(from) : `${short(from)} – ${short(to)}`);
-const askHomeCard = () => `<section class="card"><div class="card-head"><h2>📍 ¿Dónde vives?</h2></div>
+const askHomeCard = () => `<section class="card"><div class="card-head"><h2 class="ih">${icon('pin')} ¿Dónde vives?</h2></div>
   <p class="hint">Así sé qué pagos son de tu día a día y cuáles de un viaje, para decirte cuánto te gastas cuando sales fuera.</p>
   <div class="actions"><button class="btn" data-act="home-ask">Elegir mi zona</button></div></section>`;
 
@@ -890,10 +890,10 @@ function tripSheet(t) {
   const s = tripSummary(db, t);
   const cats = Object.entries(s.byCat).sort((a, b) => b[1] - a[1]);
   const places = Object.entries(s.byPlace).sort((a, b) => b[1] - a[1]);
-  openSheet(`<h2>🧳 ${esc(t.name)}</h2><p class="hint">Del ${short(t.from)} al ${short(t.to)} · ${s.days} ${s.days === 1 ? 'día' : 'días'}</p>
+  openSheet(`<h2 class="ih">${icon('suitcase')} ${esc(t.name)}</h2><p class="hint">Del ${short(t.from)} al ${short(t.to)} · ${s.days} ${s.days === 1 ? 'día' : 'días'}</p>
     <div class="big center">${eur(s.total)}</div><p class="hint center">${s.movs.length} ${s.movs.length === 1 ? 'pago' : 'pagos'}${s.days > 1 ? ' · ' + eur(s.total / s.days) + ' al día' : ''}</p>
-    ${cats.length ? `<h3>Por categoría</h3>${cats.map(([k, v]) => ln(`${CATS[k].icon} ${CATS[k].name}`, eur(v))).join('')}` : ''}
-    ${places.length > 1 ? `<h3>Por lugar</h3>${places.map(([k, v]) => ln('📍 ' + esc(k), eur(v))).join('')}` : ''}
+    ${cats.length ? `<h3>Por categoría</h3>${cats.map(([k, v]) => ln(`${icon(CATS[k].icon)} ${CATS[k].name}`, eur(v))).join('')}` : ''}
+    ${places.length > 1 ? `<h3>Por lugar</h3>${places.map(([k, v]) => ln(icon('pin', 'in') + esc(k), eur(v))).join('')}` : ''}
     ${s.movs.length ? `<h3>Pagos</h3><div class="card flush inset">${s.movs.map(movRow).join('')}</div>` : '<p class="hint">Aún no hay pagos en esas fechas.</p>'}
     <div class="actions"><button class="btn ghost" data-act="trip-edit" data-id="${t.id}">Editar</button><button class="btn danger" data-act="trip-del" data-id="${t.id}">Eliminar</button></div>`);
 }
@@ -931,7 +931,7 @@ function spending() {
     const d = prev ? v.total - (prev[k]?.total || 0) : null;
     const diff = d == null || Math.abs(d) < 1 ? '' : ` · <span class="${d > 0 ? 'neg' : 'pos'}">${d > 0 ? '▲' : '▼'} ${eur0(Math.abs(d))}</span>`;
     return `<button class="row" data-act="sp-cat" data-cat="${k}">
-      <span class="bubble" style="--c:${c.color}">${c.icon}</span>
+      <span class="bubble" style="--c:${c.color}">${icon(c.icon)}</span>
       <span class="cat-main"><span class="cat-top"><b>${c.name}</b><span>${eur(v.total)}</span></span>
       <span class="bar thin"><i style="${barStyle(k, v.total, max, c.color)}"></i></span>
       <small class="muted">${pct} % · ${v.n} ${v.n === 1 ? 'pago' : 'pagos'}${db.budgets[k] ? ` · ${budTxt(k)}` : ''}${diff}</small></span><span class="chev">›</span></button>`;
@@ -951,7 +951,7 @@ function catDetail(cat) {
   const shops = Object.entries(v.movs.reduce((a, m) => { (a[m.title] ||= { total: 0, n: 0 }); a[m.title].total -= m.amount; a[m.title].n++; return a; }, {})).sort((a, b) => b[1].total - a[1].total);
   const b = db.budgets[cat];
   const u = budgetUse(cat);
-  openSheet(`<h2>${c.icon} ${c.name}</h2><p class="hint">${p.label}</p>
+  openSheet(`<h2>${icon(c.icon)} ${c.name}</h2><p class="hint">${p.label}</p>
     <div class="big center">${eur(v.total)}</div><p class="hint center">${v.n} ${v.n === 1 ? 'pago' : 'pagos'} · media ${eur(v.total / v.n)}${b ? (u.monthly ? ` · este mes ${eur(u.spent)} de ${eur0(b)} (${Math.round(u.r * 100)} %)` : ` · ${Math.round((v.total / b) * 100)} % del tope de ${eur0(b)}`) : ''}</p>
     ${b ? `<div class="bar"><i style="${barStyle(cat, v.total, b, c.color)}"></i></div>` : ''}
     <h3>Dónde</h3>${shops.map(([k, s]) => ln(`${esc(k)}${s.n > 1 ? ` <small class="muted">× ${s.n}</small>` : ''}`, eur(s.total))).join('')}
@@ -968,36 +968,36 @@ function placeSheet(key) {
   const shops = group((m) => m.title);
   const cats = group((m) => m.cat);
   const first = movs[movs.length - 1].date, last = movs[0].date;
-  openSheet(`<h2>${s.home ? '🏠' : '📍'} ${esc(placeLabel(s))}</h2>
+  openSheet(`<h2 class="ih">${icon(s.home ? 'home' : 'pin')} ${esc(placeLabel(s))}</h2>
     <p class="hint">${s.home ? 'Tu zona · ' : ''}${first === last ? long(first) : `Del ${short(first)} al ${short(last)}`}</p>
     <div class="big center">${eur(s.total)}</div><p class="hint center">${s.n} ${s.n === 1 ? 'pago' : 'pagos'} en ${s.days} ${s.days === 1 ? 'día' : 'días'} · media ${eur(s.total / s.n)}</p>
     <h3>Dónde</h3>${shops.map(([k, v]) => ln(`${esc(k)}${v.n > 1 ? ` <small class="muted">× ${v.n}</small>` : ''}`, eur(v.total))).join('')}
-    ${cats.length > 1 ? `<h3>En qué</h3>${cats.map(([k, v]) => ln(`${CATS[k].icon} ${CATS[k].name}`, eur(v.total))).join('')}` : ''}
+    ${cats.length > 1 ? `<h3>En qué</h3>${cats.map(([k, v]) => ln(`${icon(CATS[k].icon)} ${CATS[k].name}`, eur(v.total))).join('')}` : ''}
     <h3>Pagos</h3><div class="card flush inset">${movs.map((m) => movRow(m).replace('<small>', `<small>${short(m.date)} · `)).join('')}</div>
     <div class="actions"><button class="btn ghost" data-act="place-zone" data-key="${esc(key)}">${s.home ? 'Quitar de mi zona' : 'Es de mi zona'}</button></div>`);
 }
 
 function trips() {
-  const head = `<header class="top"><h1>Viajes</h1><button class="btn small" data-act="trip-new">＋ Viaje</button></header>`;
+  const head = `<header class="top"><h1>Viajes</h1><button class="btn small" data-act="trip-new">${icon('plus')} Viaje</button></header>`;
   if (!db.settings.home?.length) return head + askHomeCard();
   const stats = placeStats(db);
   const zoneNames = db.settings.home.map((k) => stats.find((s) => s.key === k)?.name || k.replace(/(^|\s)\S/g, (c) => c.toUpperCase()));
-  const zone = `<section class="card"><div class="card-head"><h2>🏠 Tu zona</h2><button class="link" data-act="home-ask">Cambiar</button></div><p class="hint">${esc(zoneNames.join(', '))}</p></section>`;
+  const zone = `<section class="card"><div class="card-head"><h2 class="ih">${icon('home')} Tu zona</h2><button class="link" data-act="home-ask">Cambiar</button></div><p class="hint">${esc(zoneNames.join(', '))}</p></section>`;
   state.proposals = detectTrips(db);
   const props = state.proposals.map((t, i) => {
     const total = t.places.reduce((a, p) => a + p.total, 0);
     return `<section class="card propose"><div class="card-head"><h2>¿Fue un viaje?</h2><span class="tag">${range(t.from, t.to)}</span></div>
-      <p>📍 <b>${esc(t.places.map(placeLabel).join(', '))}</b> · ${eur(total)}</p>
+      <p>${icon('pin', 'in')}<b>${esc(t.places.map(placeLabel).join(', '))}</b> · ${eur(total)}</p>
       <div class="actions wrap"><button class="btn small" data-act="trip-accept" data-i="${i}">Sí, guardar</button><button class="btn small ghost" data-act="trip-home" data-i="${i}">Es de mi zona</button><button class="btn small ghost" data-act="trip-skip" data-i="${i}">No</button></div></section>`;
   }).join('');
   const saved = (db.trips || []).slice().sort((a, b) => (a.from < b.from ? 1 : -1)).map((t) => {
     const s = tripSummary(db, t);
-    return `<button class="pay" data-act="trip" data-id="${t.id}"><span class="pay-top"><span><small>${range(t.from, t.to)} · ${s.days} ${s.days === 1 ? 'día' : 'días'}</small><b>${eur(s.total)}</b></span><span class="bubble" style="--c:#4f8fd9">🧳</span></span>
+    return `<button class="pay" data-act="trip" data-id="${t.id}"><span class="pay-top"><span><small>${range(t.from, t.to)} · ${s.days} ${s.days === 1 ? 'día' : 'días'}</small><b>${eur(s.total)}</b></span><span class="bubble" style="--c:#4f8fd9">${icon('suitcase')}</span></span>
       <span class="pay-sub">${esc(t.name)} · ${s.movs.length} ${s.movs.length === 1 ? 'pago' : 'pagos'}</span></button>`;
   }).join('');
   const empty = !props && !saved ? `<section class="card"><p class="hint">Cuando pagues con tarjeta fuera de tu zona, te propondré guardarlo como viaje. También puedes crear uno a mano con sus fechas.</p></section>` : '';
   const places = stats.length ? `<h3 class="day">Gasto por lugar</h3><section class="card flush">${stats.map((s) => `<button class="row" data-act="place" data-key="${esc(s.key)}">
-      <span class="bubble" style="--c:${s.home ? '#1f9d6b' : '#4f8fd9'}">${s.home ? '🏠' : '📍'}</span>
+      <span class="bubble" style="--c:${s.home ? '#1f9d6b' : '#4f8fd9'}">${icon(s.home ? 'home' : 'pin')}</span>
       <span class="row-main"><b>${esc(placeLabel(s))}</b><small>${s.home ? 'Tu zona · ' : ''}${s.n} ${s.n === 1 ? 'pago' : 'pagos'}</small></span><span class="amt">${eur(s.total)}</span><span class="chev">›</span></button>`).join('')}</section>
     <p class="hint">Las compras por internet no cuentan: el banco pone la sede de la tienda, no dónde estabas. Los avisos del banco tampoco traen lugar; aparece al importar el extracto.</p>` : '';
   return head + zone + props + (saved ? `<h3 class="day">Tus viajes</h3>${saved}` : '') + empty + places;
@@ -1011,13 +1011,13 @@ function addSheet(d) {
   // Conceptos que ya has apuntado a mano: un toque rellena el apunte.
   const seen = new Set();
   state.sugs = d.id ? [] : db.movements.filter((m) => m.manual && (d.kind === 'in') === m.amount > 0 && !seen.has(plain(m.title)) && seen.add(plain(m.title))).slice(0, 6);
-  const sugs = state.sugs.length && !d.title ? `<div class="chips scroll sugs">${state.sugs.map((m, i) => `<button class="chip" data-act="add-sug" data-i="${i}">${(CATS[m.cat] || CATS.otros).icon} ${esc(m.title)} · ${eur(Math.abs(m.amount)).replace(',00', '')}</button>`).join('')}</div>` : '';
+  const sugs = state.sugs.length && !d.title ? `<div class="chips scroll sugs">${state.sugs.map((m, i) => `<button class="chip" data-act="add-sug" data-i="${i}">${icon((CATS[m.cat] || CATS.otros).icon)} ${esc(m.title)} · ${eur(Math.abs(m.amount)).replace(',00', '')}</button>`).join('')}</div>` : '';
   openSheet(`<h2>${d.id ? 'Editar apunte' : 'Apunte rápido'}</h2>${d.id ? '' : '<p class="hint">Para el efectivo y lo que no sale en el extracto. Los pagos con tarjeta ya llegan al importar el PDF.</p>'}${sugs}
     <div class="seg"><button class="${d.kind === 'out' ? 'on' : ''}" data-act="add-kind" data-k="out">Gasto</button><button class="${d.kind === 'in' ? 'on' : ''}" data-act="add-kind" data-k="in">Ingreso</button></div>
     <label class="field"><span>Importe (€)</span><input id="f-amount" type="text" inputmode="decimal" placeholder="0,00" value="${esc(d.amount || '')}" /></label>
     <label class="field"><span>Concepto</span><input id="f-title" type="text" placeholder="${d.kind === 'in' ? 'Me devolvieron…' : 'Café, mercado, propina…'}" value="${esc(d.title || '')}" /></label>
     <label class="field"><span>Fecha</span><input id="f-date" type="date" value="${d.date}" max="${todayIso()}" /></label>
-    <div class="catgrid">${cats.map(([k, v]) => `<button class="catopt ${k === d.cat ? 'on' : ''}" data-act="add-cat" data-cat="${k}"><span>${v.icon}</span>${v.name}</button>`).join('')}</div>
+    <div class="catgrid">${cats.map(([k, v]) => `<button class="catopt ${k === d.cat ? 'on' : ''}" data-act="add-cat" data-cat="${k}"><span>${icon(v.icon)}</span>${v.name}</button>`).join('')}</div>
     <div class="actions"><button class="btn" data-act="add-save">Guardar</button></div>`);
 }
 const addDraft = () => Object.assign(state.draft, { amount: $('#f-amount').value, title: $('#f-title').value, date: $('#f-date').value });
@@ -1078,12 +1078,12 @@ async function notifyBudget(k, u, level, i) {
   const msg = level === 2
     ? `Te has pasado del tope de ${c.name}: ${eur(u.spent)} de ${eur0(u.b)} ${when}.`
     : `Llevas el ${Math.round(u.r * 100)} % del tope de ${c.name}: ${eur(u.spent)} de ${eur0(u.b)} ${when}.`;
-  toast(`${c.icon} ${msg}`);
+  toast(msg);
   if (!Capacitor.isNativePlatform()) return;
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     if ((await LocalNotifications.checkPermissions()).display !== 'granted') return;
-    await LocalNotifications.schedule({ notifications: [{ id: 2000 + i * 3 + level, title: `${c.icon} Tope de ${c.name}`, body: msg }] });
+    await LocalNotifications.schedule({ notifications: [{ id: 2000 + i * 3 + level, title: `Tope de ${c.name}`, body: msg }] });
   } catch (e) { console.error(e); }
 }
 
@@ -1107,7 +1107,7 @@ function layoutSheet() {
     <h3>Pantalla de Inicio</h3>
     <div class="dnd" data-list="home">${cards.map((c) => { const [ico, name, desc] = HOME_DEFS[c.k]; return `<div class="dnd-item ${c.on ? '' : 'off'}" data-k="${c.k}">
       <span class="dnd-handle" aria-label="Mover ${name}">${GRIP}</span>
-      <span class="dnd-ico emoji-ico">${ico}</span>
+      <span class="dnd-ico">${icon(ico)}</span>
       <span class="row-main"><b>${name}</b><small>${desc}</small></span>
       ${sw('lay-card', c.k, c.on)}</div>`; }).join('')}</div>
     <p class="hint">El saldo va siempre arriba. Los avisos (topes, versión nueva, copia) aparecen solo cuando hacen falta.</p>
@@ -1141,32 +1141,10 @@ $('#tabs').addEventListener('pointerdown', () => { pressed = false; clearTimeout
 $('#tabs').addEventListener('click', (e) => { if (pressed) { e.stopPropagation(); e.preventDefault(); pressed = false; } }, true);
 
 // ---------- novedades ----------
-const NEWS_ICONS = {
-  news: '<rect x="4" y="4" width="16" height="16" rx="2.500"/><path d="M8 9h8M8 13h8M8 17h5"/>',
-  lock: '<rect x="5" y="10.500" width="14" height="10" rx="2.500"/><path d="M8.500 10.500V7.500a3.500 3.500 0 0 1 7 0v3"/>',
-  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.500a5.500 5.500 0 0 1 0 11H11"/>',
-  edit: '<path d="M4 20h4L19 9a2.800 2.800 0 0 0-4-4L4 16z"/><path d="M13.500 6.500l4 4"/>',
-  bolt: '<path d="M13 3L5 13.500h6L10 21l8-10.500h-6z"/>',
-  eye: '<path d="M2 12s3.600-7 10-7 10 7 10 7-3.600 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
-  theme: '<circle cx="12" cy="12" r="8.500"/><path d="M12 3.500v17a8.500 8.500 0 0 0 0-17z" fill="currentColor"/>',
-  search: '<circle cx="11" cy="11" r="6.500"/><path d="M20 20l-4.200-4.200"/>',
-  save: '<path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>',
-  paw: '<circle cx="7" cy="10" r="1.800"/><circle cx="17" cy="10" r="1.800"/><circle cx="9.800" cy="6" r="1.800"/><circle cx="14.200" cy="6" r="1.800"/><path d="M12 12.500c-2.800 0-5 3.200-5 5.200 0 1.400 1 2.300 2.400 2.300 1.100 0 1.600-.6 2.600-.6s1.500.6 2.600.6c1.400 0 2.400-.9 2.400-2.300 0-2-2.200-5.200-5-5.200z"/>',
-  tag: '<path d="M3.500 12.500V4.500a1 1 0 0 1 1-1h8l8 8-9 9z"/><circle cx="8.500" cy="8.500" r="1.500"/>',
-  calendar: '<rect x="4" y="5" width="16" height="15" rx="2.500"/><path d="M4 10h16M8.500 3v4M15.500 3v4"/>',
-  download: '<path d="M12 4v11M7.500 10.500L12 15l4.500-4.500"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
-  pin: '<path d="M12 21s-6.500-5.600-6.500-11a6.500 6.500 0 0 1 13 0c0 5.400-6.500 11-6.500 11z"/><circle cx="12" cy="10" r="2.300"/>',
-  card: '<rect x="3" y="5.500" width="18" height="13" rx="2.500"/><path d="M3 10h18M7 15h4"/>',
-  chart: '<path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.500A9 9 0 0 1 20.500 9H15z"/>',
-  piggy: '<path d="M5 11a6 5 0 0 1 11-2.500h1.500L19 7v3.500l1.500 1V14l-2 .5a6 6 0 0 1-2 2.500V19h-2.500v-1.200a7 7 0 0 1-3 0V19H8.500v-2.200A5.500 5.500 0 0 1 5 11z"/><path d="M10 7.500h3"/>',
-  layout: '<rect x="4" y="4" width="7" height="7" rx="1.800"/><rect x="13" y="4" width="7" height="7" rx="1.800"/><rect x="4" y="13" width="7" height="7" rx="1.800"/><rect x="13" y="13" width="7" height="7" rx="1.800"/>',
-  target: '<circle cx="12" cy="12" r="8.500"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.500"/>',
-  more: '<circle cx="5.500" cy="12" r="1.600"/><circle cx="12" cy="12" r="1.600"/><circle cx="18.500" cy="12" r="1.600"/>',
-};
 const fmtDay = (iso) => { const d = toDate(iso); return `${d.getDate()} de ${MES_L[d.getMonth()]}`; };
 function newsSheet() {
   const [cur, ...old] = CHANGELOG;
-  const item = ([ico, t, d]) => `<div class="news-item"><span class="news-ico">${NEWS_ICONS[ico] ? `<svg viewBox="0 0 24 24">${NEWS_ICONS[ico]}</svg>` : ico}</span><span class="row-main"><b>${t}</b><small>${d}</small></span></div>`;
+  const item = ([ico, t, d]) => `<div class="news-item"><span class="news-ico">${icon(ico)}</span><span class="row-main"><b>${t}</b><small>${d}</small></span></div>`;
   openSheet(`<div class="news-head"><span class="tag">Versión ${cur.v}</span>${cur.date ? `<small>${fmtDay(cur.date)}` + '</small>' : ''}</div>
     <h2>Novedades</h2>
     <div class="news-list">${cur.items.map(item).join('')}</div>
@@ -1412,14 +1390,14 @@ const ACTIONS = {
   'slip-save': saveSlip,
   'slip-del': (el) => { const id = el.dataset.id; closeSheet(); withUndo('Nómina eliminada.', () => { db.payslips = db.payslips.filter((p) => p.id !== id); }); },
   'goal-new': () => goalForm(),
-  emoji: (el) => { state.draft.emoji = el.dataset.e; sheet.querySelectorAll('.emoji').forEach((b) => b.classList.toggle('on', b === el)); },
+  emoji: (el) => { state.draft.icon = el.dataset.e; sheet.querySelectorAll('.emoji').forEach((b) => b.classList.toggle('on', b === el)); },
   'goal-save': () => {
     const name = $('#f-name').value.trim(), target = parseNum($('#f-target').value);
     if (!name || !target || target <= 0) return toast('Pon un nombre y una cantidad.');
     const d = state.draft;
     const due = $('#f-due').value || null;
-    if (d.id) Object.assign(db.goals.find((g) => g.id === d.id), { name, target, emoji: d.emoji, due });
-    else db.goals.push({ id: uid(), name, target, emoji: d.emoji, saved: 0, due });
+    if (d.id) Object.assign(db.goals.find((g) => g.id === d.id), { name, target, icon: d.icon, emoji: undefined, due });
+    else db.goals.push({ id: uid(), name, target, icon: d.icon, saved: 0, due });
     save(); closeSheet(); render();
   },
   goal: (el) => goalSheet(db.goals.find((g) => g.id === el.dataset.id)),
