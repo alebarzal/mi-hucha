@@ -47,6 +47,8 @@ public class UpdaterPlugin extends Plugin {
                 dir.mkdirs();
                 File apk = new File(dir, "MiHucha.apk");
                 download(url, apk);
+                // Un momento para que la app enseñe la animación de «lista» antes del instalador.
+                Thread.sleep(1100);
                 Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", apk);
                 Intent i = new Intent(Intent.ACTION_VIEW);
                 i.setDataAndType(uri, "application/vnd.android.package-archive");

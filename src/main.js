@@ -53,6 +53,7 @@ const daysAgo = (iso) => { const n = dayDiff(iso, todayIso()); return n <= 0 ? '
 // ---------- hoja inferior ----------
 function openSheet(html) {
   const wasOpen = !sheet.hidden;
+  sheet.classList.toggle('still', wasOpen);
   sheet.innerHTML = `<div class="backdrop" data-act="close"></div><div class="panel" role="dialog"><div class="grab"></div>${html}</div>`;
   sheet.hidden = false;
   document.body.classList.add('locked');
@@ -603,38 +604,67 @@ const Upd = Capacitor.isNativePlatform() ? registerPlugin('Updater') : null;
 // ---------- actualizar desde GitHub ----------
 // Ventana con la barra de descarga y el porcentaje.
 function progressBox() {
+  const C = 2 * Math.PI * 54;
   const box = document.createElement('div');
   box.className = 'upd';
   box.innerHTML = `<div class="upd-card" role="dialog" aria-label="Descargando actualización">
-    <div class="upd-icon">⬇️</div>
-    <b class="upd-title">Descargando actualización</b>
-    <div class="upd-pct" aria-live="polite">0 %</div>
-    <div class="upd-track indet"><div class="upd-fill"></div></div>
-    <small class="upd-size">Conectando con GitHub…</small></div>`;
+    <div class="ring indet">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--brand-2)"/><stop offset="1" stop-color="#5fd3a5"/></linearGradient></defs>
+        <circle class="ring-track" cx="60" cy="60" r="54"/>
+        <g class="ring-spin"><circle class="ring-fill" cx="60" cy="60" r="54" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></g>
+        <path class="ring-check" d="M41 61.500l13 13 26-27"/>
+      </svg>
+      <div class="ring-num"><b>0</b><span>%</span></div>
+    </div>
+    <b class="upd-title">Preparando la descarga</b>
+    <small class="upd-size">Conectando con GitHub…</small>
+    <div class="upd-steps"><i class="on"></i><i></i><i></i></div></div>`;
   document.body.appendChild(box);
   const $q = (s) => box.querySelector(s);
   const mb = (b) => (b / 1048576).toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const steps = (n) => box.querySelectorAll('.upd-steps i').forEach((el, i) => el.classList.toggle('on', i <= n));
+  // El número y el anillo persiguen el valor real con suavidad.
+  let target = 0, shown = 0, raf = 0, t0 = 0, done0 = 0, finished = false;
+  const tick = () => {
+    shown += (target - shown) * 0.14;
+    if (Math.abs(target - shown) < 0.05) shown = target;
+    $q('.ring-fill').setAttribute('stroke-dashoffset', C * (1 - shown / 100));
+    $q('.ring-num b').textContent = Math.round(shown);
+    raf = shown === target ? 0 : requestAnimationFrame(tick);
+  };
+  const go = (p) => { target = p; if (!raf) raf = requestAnimationFrame(tick); };
   return {
     set(done, total) {
+      if (!t0) { t0 = performance.now(); done0 = done; }
       if (total > 0) {
-        const pct = Math.min(100, Math.floor((done * 100) / total));
-        $q('.upd-track').classList.remove('indet');
-        $q('.upd-fill').style.width = pct + '%';
-        $q('.upd-pct').textContent = pct + ' %';
-        $q('.upd-size').textContent = `${mb(done)} de ${mb(total)} MB`;
+        if ($q('.ring').classList.contains('indet')) {
+          $q('.ring').classList.remove('indet');
+          $q('.upd-title').textContent = 'Descargando actualización';
+          steps(1);
+        }
+        go(Math.min(100, (done * 100) / total));
+        if (done >= total && !finished) this.finish();
+        const secs = (performance.now() - t0) / 1000;
+        const speed = secs > 0.6 ? (done - done0) / secs : 0;
+        const left = speed > 0 ? Math.ceil((total - done) / speed) : null;
+        $q('.upd-size').textContent = `${mb(done)} de ${mb(total)} MB${left != null ? ` · ${left < 60 ? left + ' s' : Math.ceil(left / 60) + ' min'}` : ''}`;
       } else $q('.upd-size').textContent = `${mb(done)} MB descargados`;
     },
     finish() {
-      $q('.upd-track').classList.remove('indet');
-      $q('.upd-fill').style.width = '100%';
-      $q('.upd-pct').textContent = '100 %';
-      $q('.upd-title').textContent = 'Lista para instalar';
-      $q('.upd-icon').textContent = '✅';
-      $q('.upd-size').textContent = 'Abriendo el instalador de Android…';
-      box.classList.add('done');
-      setTimeout(() => this.close(), 2500);
+      if (finished) return;
+      finished = true;
+      $q('.ring').classList.remove('indet');
+      go(100);
+      steps(2);
+      setTimeout(() => {
+        box.classList.add('done');
+        $q('.upd-title').textContent = 'Lista para instalar';
+        $q('.upd-size').textContent = 'Abriendo el instalador de Android…';
+      }, 380);
+      setTimeout(() => this.close(), 3200);
     },
-    close() { box.classList.add('out'); setTimeout(() => box.remove(), 200); },
+    close() { cancelAnimationFrame(raf); box.classList.add('out'); setTimeout(() => box.remove(), 260); },
   };
 }
 
@@ -695,7 +725,7 @@ function updatePopup() {
     <div class="actions"><button class="btn ghost" data-act="close">Más tarde</button><button class="btn" data-act="update" data-direct="1">Actualizar</button></div>
   </div>`);
 }
-if (import.meta.env.DEV) window.__updatePopup = updatePopup; // para probar el aviso en el navegador
+if (import.meta.env.DEV) Object.assign(window, { __updatePopup: updatePopup, __progressBox: progressBox }); // para probar en el navegador
 async function autoCheckUpdate() {
   if (!Upd || db.settings.updAuto === false || !__BUILD_SHA__) return;
   if (Date.now() - (db.settings.updCheckAt || 0) < 10 * 60e3) {
@@ -1102,7 +1132,7 @@ enableDrag((kind, from, to) => {
   const list = kind === 'tabs' ? tabLayout(db.settings) : homeLayout(db.settings);
   const [x] = list.splice(from, 1);
   list.splice(to, 0, x);
-  saveLayout(kind === 'tabs' ? 'tabs' : 'homeCards', list);
+  saveLayout(kind === 'tabs' ? 'tabs' : 'homeCards', list, false);
 });
 // Mantener pulsada la barra inferior abre el editor.
 let pressT = 0, pressed = false;
@@ -1111,10 +1141,32 @@ $('#tabs').addEventListener('pointerdown', () => { pressed = false; clearTimeout
 $('#tabs').addEventListener('click', (e) => { if (pressed) { e.stopPropagation(); e.preventDefault(); pressed = false; } }, true);
 
 // ---------- novedades ----------
+const NEWS_ICONS = {
+  news: '<rect x="4" y="4" width="16" height="16" rx="2.500"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+  lock: '<rect x="5" y="10.500" width="14" height="10" rx="2.500"/><path d="M8.500 10.500V7.500a3.500 3.500 0 0 1 7 0v3"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.500a5.500 5.500 0 0 1 0 11H11"/>',
+  edit: '<path d="M4 20h4L19 9a2.800 2.800 0 0 0-4-4L4 16z"/><path d="M13.500 6.500l4 4"/>',
+  bolt: '<path d="M13 3L5 13.500h6L10 21l8-10.500h-6z"/>',
+  eye: '<path d="M2 12s3.600-7 10-7 10 7 10 7-3.600 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  theme: '<circle cx="12" cy="12" r="8.500"/><path d="M12 3.500v17a8.500 8.500 0 0 0 0-17z" fill="currentColor"/>',
+  search: '<circle cx="11" cy="11" r="6.500"/><path d="M20 20l-4.200-4.200"/>',
+  save: '<path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>',
+  paw: '<circle cx="7" cy="10" r="1.800"/><circle cx="17" cy="10" r="1.800"/><circle cx="9.800" cy="6" r="1.800"/><circle cx="14.200" cy="6" r="1.800"/><path d="M12 12.500c-2.800 0-5 3.200-5 5.200 0 1.400 1 2.300 2.400 2.300 1.100 0 1.600-.6 2.600-.6s1.500.6 2.600.6c1.400 0 2.400-.9 2.400-2.300 0-2-2.200-5.200-5-5.200z"/>',
+  tag: '<path d="M3.500 12.500V4.500a1 1 0 0 1 1-1h8l8 8-9 9z"/><circle cx="8.500" cy="8.500" r="1.500"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2.500"/><path d="M4 10h16M8.500 3v4M15.500 3v4"/>',
+  download: '<path d="M12 4v11M7.500 10.500L12 15l4.500-4.500"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  pin: '<path d="M12 21s-6.500-5.600-6.500-11a6.500 6.500 0 0 1 13 0c0 5.400-6.500 11-6.500 11z"/><circle cx="12" cy="10" r="2.300"/>',
+  card: '<rect x="3" y="5.500" width="18" height="13" rx="2.500"/><path d="M3 10h18M7 15h4"/>',
+  chart: '<path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.500A9 9 0 0 1 20.500 9H15z"/>',
+  piggy: '<path d="M5 11a6 5 0 0 1 11-2.500h1.500L19 7v3.500l1.500 1V14l-2 .5a6 6 0 0 1-2 2.500V19h-2.500v-1.200a7 7 0 0 1-3 0V19H8.500v-2.200A5.500 5.500 0 0 1 5 11z"/><path d="M10 7.500h3"/>',
+  layout: '<rect x="4" y="4" width="7" height="7" rx="1.800"/><rect x="13" y="4" width="7" height="7" rx="1.800"/><rect x="4" y="13" width="7" height="7" rx="1.800"/><rect x="13" y="13" width="7" height="7" rx="1.800"/>',
+  target: '<circle cx="12" cy="12" r="8.500"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.500"/>',
+  more: '<circle cx="5.500" cy="12" r="1.600"/><circle cx="12" cy="12" r="1.600"/><circle cx="18.500" cy="12" r="1.600"/>',
+};
 const fmtDay = (iso) => { const d = toDate(iso); return `${d.getDate()} de ${MES_L[d.getMonth()]}`; };
 function newsSheet() {
   const [cur, ...old] = CHANGELOG;
-  const item = ([ico, t, d]) => `<div class="news-item"><span class="news-ico">${ico}</span><span class="row-main"><b>${t}</b><small>${d}</small></span></div>`;
+  const item = ([ico, t, d]) => `<div class="news-item"><span class="news-ico">${NEWS_ICONS[ico] ? `<svg viewBox="0 0 24 24">${NEWS_ICONS[ico]}</svg>` : ico}</span><span class="row-main"><b>${t}</b><small>${d}</small></span></div>`;
   openSheet(`<div class="news-head"><span class="tag">Versión ${cur.v}</span>${cur.date ? `<small>${fmtDay(cur.date)}` + '</small>' : ''}</div>
     <h2>Novedades</h2>
     <div class="news-list">${cur.items.map(item).join('')}</div>

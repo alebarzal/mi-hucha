@@ -104,8 +104,14 @@ export function enableDrag(onDrop) {
     item.classList.add('settling');
     item.style.transform = `translateY(${target}px)`;
     setTimeout(() => {
+      // Todo en el mismo fotograma y sin transiciones: no hay salto visible.
       list.classList.remove('dragging');
-      items.forEach((el) => { el.style.transform = ''; el.classList.remove('settling'); });
+      item.classList.remove('settling');
+      if (to !== from) {
+        const rest = items.filter((el) => el !== item);
+        list.insertBefore(item, rest[to] || rest[rest.length - 1].nextSibling);
+      }
+      items.forEach((el) => { el.style.transform = ''; });
       if (to !== from) onDrop(list.dataset.list, from, to);
     }, 190);
   };
