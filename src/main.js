@@ -673,7 +673,7 @@ function updatePopup() {
   updShown = db.settings.updAvail;
   const { v, text } = updInfo();
   openSheet(`<div class="upd-pop">
-    <div class="upd-pop-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.500 8.500L12 4l4.500 4.500"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></div>
+    <div class="upd-pop-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.500 10.500L12 15l4.500-4.500"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></div>
     ${v ? `<span class="tag">Versión ${esc(v)}</span>` : ''}
     <h2>Hay una actualización</h2>
     <p class="hint">${text ? esc(text.charAt(0).toUpperCase() + text.slice(1)) + '.' : 'Hay una versión nueva de Mi Hucha.'} Se instala encima en unos segundos y tus datos se mantienen.</p>
