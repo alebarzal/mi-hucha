@@ -4,6 +4,7 @@ import { detectType, parseBank, parsePayslip } from './parser.js';
 import { forecast, LIMIT_ONE_PAYER, LIMIT_TWO_PAYERS, SECOND_PAYER_MIN } from './tax.js';
 import { parseNoti } from './noti.js';
 import { CHANGELOG } from './changelog.js';
+import { TAB_DEFS, HOME_DEFS, tabLayout, homeLayout, enableDrag } from './layout.js';
 import { placeOf, placeStats, suggestHome, detectTrips, tripSummary, tripName, norm } from './trips.js';
 
 const $ = (s) => document.querySelector(s);
@@ -77,7 +78,15 @@ const ICONS = {
   payroll: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',
   savings: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M15 9.5c-.6-1-1.700-1.500-3-1.500-1.700 0-3 .900-3 2s1.300 2 3 2 3 .900 3 2-1.300 2-3 2c-1.300 0-2.400-.500-3-1.500"/>',
 };
-const TABS = [['home', 'Inicio'], ['movs', 'Movimientos'], ['spending', 'Gastos'], ['payroll', 'Nóminas'], ['savings', 'Ahorro'], ['trips', 'Viajes']];
+ICONS.more = '<circle cx="5.500" cy="12" r="1.600"/><circle cx="12" cy="12" r="1.600"/><circle cx="18.500" cy="12" r="1.600"/>';
+const GRIP = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.500"/><circle cx="15" cy="6" r="1.500"/><circle cx="9" cy="12" r="1.500"/><circle cx="15" cy="12" r="1.500"/><circle cx="9" cy="18" r="1.500"/><circle cx="15" cy="18" r="1.500"/></svg>';
+// Botones de la barra inferior según el orden elegido; lo oculto va a «Más».
+function tabButtons(active, layout = tabLayout(db.settings)) {
+  const shown = layout.filter((t) => t.on);
+  const hidden = layout.filter((t) => !t.on);
+  const btn = (k, label, act = 'tab') => `<button class="${active === k || (k === 'more' && hidden.some((t) => t.k === active)) ? 'on' : ''}" data-act="${act}" data-tab="${k}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg><span>${label}</span></button>`;
+  return shown.map((t) => btn(t.k, TAB_DEFS[t.k])).join('') + (hidden.length ? btn('more', 'Más', 'more') : '');
+}
 
 function movRow(m) {
   const c = CATS[m.cat] || CATS.otros;
@@ -175,7 +184,12 @@ function home() {
   const backup = db.movements.length >= 20 && !snoozed && (!lb || dayDiff(lb, todayIso()) > 30) ? `<section class="card"><div class="card-head"><h2>💾 ${lb ? 'Toca hacer una copia' : 'Aún no tienes copia de seguridad'}</h2></div>
     <p class="hint">${lb ? `La última es de ${daysAgo(lb)}.` : 'Tus datos solo están en este móvil.'} Guárdala en Drive o envíatela por correo para no perder nada.</p>
     <div class="actions"><button class="btn" data-act="export">Hacer copia</button><button class="btn ghost" data-act="backup-later">Más tarde</button></div></section>` : '';
-  return head + hero + upd + remind + askHome + alerts + now + spend + last + backup;
+  const goalsCard = db.goals.length ? `<section class="card"><div class="card-head"><h2>Tus objetivos</h2><button class="link" data-act="tab" data-tab="savings">Ver todos</button></div>
+    ${db.goals.slice(0, 3).map((g) => { const pct = Math.min(100, Math.round((g.saved / g.target) * 100)); return `<button class="mini-goal" data-act="goal" data-id="${g.id}"><span class="cat-top"><b>${g.emoji} ${esc(g.name)}</b><span>${eur0(g.saved)} <small>de ${eur0(g.target)}</small></span></span><span class="bar thin"><i style="width:${pct}%"></i></span></button>`; }).join('')}</section>`
+    : `<section class="card"><div class="card-head"><h2>Tus objetivos</h2></div><p class="hint">Aún no tienes objetivos de ahorro.</p><button class="btn ghost wide" data-act="goal-new">＋ Crear objetivo</button></section>`;
+  const parts = { now, spend, last, goals: goalsCard };
+  const body = homeLayout(db.settings).filter((c) => c.on).map((c) => parts[c.k]).join('');
+  return head + hero + upd + remind + askHome + alerts + body + backup;
 }
 
 // ---------- Movimientos ----------
@@ -395,6 +409,7 @@ function settingsSheet() {
     <label class="field"><span>Porcentaje de la nómina que quieres ahorrar</span><input id="f-pct" type="text" inputmode="numeric" value="${db.settings.savePct}" /></label>
     <div class="actions"><button class="btn" data-act="pct-save">Guardar</button></div>
     <h3>Aspecto</h3>
+    <button class="row news-link" data-act="layout"><span class="bubble" style="--c:#4f8fd9">🧩</span><span class="row-main"><b>Personalizar barra e Inicio</b><small>Ordena y oculta pestañas y tarjetas. También manteniendo pulsada la barra</small></span><span class="chev">›</span></button>
     <div class="seg three">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, l]) => `<button class="${(db.settings.theme || 'auto') === k ? 'on' : ''}" data-act="theme" data-t="${k}">${l}</button>`).join('')}</div>
     <label class="check"><input type="checkbox" data-act="hide-money" ${db.settings.hideMoney ? 'checked' : ''} /><span class="row-main"><b>Ocultar importes</b><small>Los difumina; también con el ojo de Inicio</small></span></label>
     <h3>Palabras clave de categorías</h3>
@@ -1042,6 +1057,59 @@ async function notifyBudget(k, u, level, i) {
   } catch (e) { console.error(e); }
 }
 
+// ---------- personalizar barra e Inicio ----------
+const sw = (act, k, on, locked) => `<label class="switch${locked ? ' locked' : ''}"><input type="checkbox" data-act="${act}" data-k="${k}" ${on ? 'checked' : ''} ${locked ? 'disabled' : ''} aria-label="Mostrar" /><i></i></label>`;
+function layoutSheet() {
+  const tabs = tabLayout(db.settings);
+  const cards = homeLayout(db.settings);
+  const hiddenN = tabs.filter((t) => !t.on).length;
+  const keepScroll = sheet.querySelector('.panel')?.scrollTop;
+  openSheet(`<div class="lay-head"><h2>Personalizar</h2><button class="link" data-act="lay-reset">Restablecer</button></div>
+    <p class="hint">Mantén pulsado <span class="grip-inline">${GRIP}</span> y arrastra para cambiar el orden. El interruptor muestra u oculta.</p>
+    <h3>Barra inferior</h3>
+    <div class="tab-preview" aria-hidden="true">${tabButtons(state.tab, tabs)}</div>
+    <div class="dnd" data-list="tabs">${tabs.map((t) => `<div class="dnd-item ${t.on ? '' : 'off'}" data-k="${t.k}">
+      <span class="dnd-handle" aria-label="Mover ${TAB_DEFS[t.k]}">${GRIP}</span>
+      <span class="dnd-ico"><svg viewBox="0 0 24 24">${ICONS[t.k]}</svg></span>
+      <span class="row-main"><b>${TAB_DEFS[t.k]}</b><small>${t.k === 'home' ? 'Siempre visible' : t.on ? 'En la barra' : 'En «Más»'}</small></span>
+      ${sw('lay-tab', t.k, t.on, t.k === 'home')}</div>`).join('')}</div>
+    <p class="hint" id="lay-more">${hiddenN ? `Las pestañas ocultas siguen a mano en el botón «Más».` : 'Si ocultas alguna, aparecerá un botón «Más» para llegar a ella.'}</p>
+    <h3>Pantalla de Inicio</h3>
+    <div class="dnd" data-list="home">${cards.map((c) => { const [ico, name, desc] = HOME_DEFS[c.k]; return `<div class="dnd-item ${c.on ? '' : 'off'}" data-k="${c.k}">
+      <span class="dnd-handle" aria-label="Mover ${name}">${GRIP}</span>
+      <span class="dnd-ico emoji-ico">${ico}</span>
+      <span class="row-main"><b>${name}</b><small>${desc}</small></span>
+      ${sw('lay-card', c.k, c.on)}</div>`; }).join('')}</div>
+    <p class="hint">El saldo va siempre arriba. Los avisos (topes, versión nueva, copia) aparecen solo cuando hacen falta.</p>
+    <div class="actions"><button class="btn" data-act="close">Listo</button></div>`);
+  if (keepScroll) sheet.querySelector('.panel').scrollTop = keepScroll;
+}
+function saveLayout(kind, list, rebuild = true) {
+  db.settings[kind] = list.map(({ k, on }) => ({ k, on }));
+  save(); render();
+  if (rebuild) return layoutSheet();
+  // Solo cambia la visibilidad: se actualiza en el sitio para que el interruptor se anime.
+  const tabs = tabLayout(db.settings);
+  sheet.querySelector('.tab-preview').innerHTML = tabButtons(state.tab, tabs);
+  sheet.querySelector('#lay-more').textContent = tabs.some((t) => !t.on) ? 'Las pestañas ocultas siguen a mano en el botón «Más».' : 'Si ocultas alguna, aparecerá un botón «Más» para llegar a ella.';
+  for (const it of list) {
+    const el = sheet.querySelector(`.dnd[data-list="${kind === 'tabs' ? 'tabs' : 'home'}"] .dnd-item[data-k="${it.k}"]`);
+    el.classList.toggle('off', !it.on);
+    if (kind === 'tabs' && it.k !== 'home') el.querySelector('small').textContent = it.on ? 'En la barra' : 'En «Más»';
+  }
+}
+enableDrag((kind, from, to) => {
+  const list = kind === 'tabs' ? tabLayout(db.settings) : homeLayout(db.settings);
+  const [x] = list.splice(from, 1);
+  list.splice(to, 0, x);
+  saveLayout(kind === 'tabs' ? 'tabs' : 'homeCards', list);
+});
+// Mantener pulsada la barra inferior abre el editor.
+let pressT = 0, pressed = false;
+$('#tabs').addEventListener('pointerdown', () => { pressed = false; clearTimeout(pressT); pressT = setTimeout(() => { pressed = true; try { navigator.vibrate?.(15); } catch {} layoutSheet(); }, 600); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => $('#tabs').addEventListener(ev, () => clearTimeout(pressT)));
+$('#tabs').addEventListener('click', (e) => { if (pressed) { e.stopPropagation(); e.preventDefault(); pressed = false; } }, true);
+
 // ---------- novedades ----------
 const fmtDay = (iso) => { const d = toDate(iso); return `${d.getDate()} de ${MES_L[d.getMonth()]}`; };
 function newsSheet() {
@@ -1073,7 +1141,7 @@ function applyLook() {
 function render() {
   app.innerHTML = VIEWS[state.tab]();
   setTimeout(checkBudgets, 0);
-  $('#tabs').innerHTML = TABS.map(([k, label]) => `<button class="${state.tab === k ? 'on' : ''}" data-act="tab" data-tab="${k}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg><span>${label}</span></button>`).join('');
+  $('#tabs').innerHTML = tabButtons(state.tab);
 }
 
 const ACTIONS = {
@@ -1254,6 +1322,16 @@ const ACTIONS = {
     render();
   },
   settings: settingsSheet,
+  layout: layoutSheet,
+  'lay-tab': (el) => { const l = tabLayout(db.settings); l.find((t) => t.k === el.dataset.k).on = el.checked; saveLayout('tabs', l, false); },
+  'lay-card': (el) => { const l = homeLayout(db.settings); l.find((c) => c.k === el.dataset.k).on = el.checked; saveLayout('homeCards', l, false); },
+  'lay-reset': () => { delete db.settings.tabs; delete db.settings.homeCards; save(); render(); layoutSheet(); toast('Diseño original restablecido.'); },
+  more: () => {
+    const hidden = tabLayout(db.settings).filter((t) => !t.on);
+    openSheet(`<h2>Más</h2><section class="card flush">${hidden.map((t) => `<button class="row" data-act="more-go" data-tab="${t.k}"><span class="dnd-ico"><svg viewBox="0 0 24 24">${ICONS[t.k]}</svg></span><span class="row-main"><b>${TAB_DEFS[t.k]}</b></span><span class="chev">›</span></button>`).join('')}</section>
+      <button class="btn ghost wide" data-act="layout">Personalizar barra e Inicio</button>`);
+  },
+  'more-go': (el) => { closeSheet(); state.tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
   news: newsSheet,
   mov: (el) => movSheet(db.movements.find((m) => m.id === el.dataset.id)),
   setcat: (el) => {

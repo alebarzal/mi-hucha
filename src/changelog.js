@@ -2,6 +2,15 @@
 // La primera entrada es la versión actual; añade una nueva arriba en cada versión.
 export const CHANGELOG = [
   {
+    v: '1.14',
+    date: '2026-11-14',
+    items: [
+      ['🧩', 'Personaliza la barra y el Inicio', 'Ordena las pestañas y las tarjetas de Inicio arrastrándolas, y oculta las que no uses. En Ajustes, o manteniendo pulsada la barra de abajo.'],
+      ['🎯', 'Objetivos en Inicio', 'Nueva tarjeta opcional con el progreso de tus objetivos de ahorro.'],
+      ['⋯', 'Botón «Más»', 'Las pestañas que ocultes siguen a mano desde «Más».'],
+    ],
+  },
+  {
     v: '1.13',
     date: '2026-11-14',
     items: [
