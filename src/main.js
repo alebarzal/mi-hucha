@@ -63,6 +63,7 @@ function closeSheet(fromPop) {
   sheet.innerHTML = '';
   document.body.classList.remove('locked');
   if (!fromPop) { skipPop++; history.back(); }
+  if (updPending) setTimeout(updatePopup, 350);
 }
 let skipPop = 0;
 window.addEventListener('popstate', () => { if (skipPop) skipPop--; else closeSheet(true); });
@@ -166,8 +167,8 @@ function home() {
     return `<button class="note budget-alert ${u.r >= 1 ? 'over' : ''}" data-act="cat-filter" data-cat="${k}"><b>${c.icon} ${u.r >= 1 ? 'Te has pasado del tope de' : 'Cerca del tope de'} ${c.name}</b>
       <span>${eur(u.spent)} de ${eur0(u.b)} ${u.monthly ? 'este mes' : 'desde la última nómina'} · ${Math.round(u.r * 100)} %</span></button>`;
   }).join('');
-  const upd = db.settings.updAvail && db.settings.updAvail !== __BUILD_SHA__ ? `<section class="card"><div class="card-head"><h2>⬆️ Hay una versión nueva</h2></div>
-    <p class="hint">${esc(db.settings.updNotes || 'Se instala encima y tus datos se mantienen.')}</p>
+  const upd = db.settings.updAvail && db.settings.updAvail !== __BUILD_SHA__ ? `<section class="card"><div class="card-head"><h2>⬆️ Hay una versión nueva</h2>${updInfo().v ? `<span class="tag">${esc(updInfo().v)}</span>` : ''}</div>
+    <p class="hint">${updInfo().text ? esc(updInfo().text.charAt(0).toUpperCase() + updInfo().text.slice(1)) + '. ' : ''}Se instala encima y tus datos se mantienen.</p>
     <div class="actions"><button class="btn" data-act="update">Actualizar ahora</button></div></section>` : '';
   const lb = db.settings.lastBackup;
   const snoozed = db.settings.backupSnooze && dayDiff(db.settings.backupSnooze, todayIso()) < 14;
@@ -423,7 +424,7 @@ function settingsSheet() {
     <h3>Actualizar</h3>
     <button class="row news-link" data-act="news"><span class="bubble" style="--c:#1f9d6b">📰</span><span class="row-main"><b>Novedades</b><small>Lo nuevo de la versión ${__APP_VERSION__} y de las anteriores</small></span><span class="chev">›</span></button>
     <p class="hint">Versión ${__APP_VERSION__}${__BUILD_SHA__ ? ` · ${__BUILD_SHA__.slice(0, 7)}` : ''}. Descarga la última versión subida a GitHub y la instala encima, sin perder tus datos.</p>
-    <label class="check"><input type="checkbox" data-act="upd-auto" ${db.settings.updAuto === false ? '' : 'checked'} /><span class="row-main"><b>Avisarme de versiones nuevas</b><small>Lo comprueba al abrir la app, como mucho dos veces al día</small></span></label>
+    <label class="check"><input type="checkbox" data-act="upd-auto" ${db.settings.updAuto === false ? '' : 'checked'} /><span class="row-main"><b>Avisarme de versiones nuevas</b><small>Lo comprueba cada vez que abres la app</small></span></label>
     <div class="actions"><button class="btn ghost" data-act="update">Buscar actualización</button></div>
     <h3>Tus datos</h3>
     <p class="hint">Todo se guarda solo en este móvil. Haz una copia de vez en cuando para no perderlo si cambias de teléfono. <b>${db.settings.lastBackup ? `Última copia: ${daysAgo(db.settings.lastBackup)}.` : 'Aún no has hecho ninguna copia.'}</b></p>
@@ -637,7 +638,8 @@ async function checkUpdate(el) {
     if (__BUILD_SHA__ && rel.target_commitish === __BUILD_SHA__) return toast('Ya tienes la última versión ✓');
     const d = new Date(rel.published_at);
     const when = `${d.getDate()} ${MES[d.getMonth()]} a las ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    if (!confirm(`Hay una versión nueva (${when}):
+    if (el.dataset.direct) closeSheet();
+    else if (!confirm(`Hay una versión nueva (${when}):
 ${rel.body || ''}
 
 ¿Descargarla e instalarla? Tus datos se mantienen.`)) return;
@@ -658,10 +660,33 @@ ${rel.body || ''}
     toast(e?.message || 'No se pudo comprobar. ¿Tienes conexión?');
   } finally { el.disabled = false; el.textContent = label; }
 }
-// Al abrir la app mira (como mucho cada 12 h) si hay versión nueva y lo enseña en Inicio.
+// Al abrir la app mira si hay versión nueva: la anuncia con un aviso y una tarjeta en Inicio.
+let updShown = '', updPending = false;
+const updInfo = () => {
+  const body = (db.settings.updNotes || '').trim();
+  const m = body.match(/^(\d+\.\d+):\s*(.*)$/);
+  return m ? { v: m[1], text: m[2] } : { v: '', text: body };
+};
+function updatePopup() {
+  if (!sheet.hidden || !lockEl.hidden) { updPending = true; return; }
+  updPending = false;
+  updShown = db.settings.updAvail;
+  const { v, text } = updInfo();
+  openSheet(`<div class="upd-pop">
+    <div class="upd-pop-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.500 8.500L12 4l4.500 4.500"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></div>
+    ${v ? `<span class="tag">Versión ${esc(v)}</span>` : ''}
+    <h2>Hay una actualización</h2>
+    <p class="hint">${text ? esc(text.charAt(0).toUpperCase() + text.slice(1)) + '.' : 'Hay una versión nueva de Mi Hucha.'} Se instala encima en unos segundos y tus datos se mantienen.</p>
+    <div class="actions"><button class="btn ghost" data-act="close">Más tarde</button><button class="btn" data-act="update" data-direct="1">Actualizar</button></div>
+  </div>`);
+}
+if (import.meta.env.DEV) window.__updatePopup = updatePopup; // para probar el aviso en el navegador
 async function autoCheckUpdate() {
   if (!Upd || db.settings.updAuto === false || !__BUILD_SHA__) return;
-  if (Date.now() - (db.settings.updCheckAt || 0) < 12 * 3600e3) return;
+  if (Date.now() - (db.settings.updCheckAt || 0) < 10 * 60e3) {
+    if (db.settings.updAvail && db.settings.updAvail !== __BUILD_SHA__ && updShown !== db.settings.updAvail) updatePopup();
+    return;
+  }
   try {
     const r = await fetch(`https://api.github.com/repos/${REPO}/releases/tags/latest`, { cache: 'no-store' });
     if (!r.ok) return;
@@ -669,9 +694,11 @@ async function autoCheckUpdate() {
     if (!(rel.assets || []).some((a) => a.name.endsWith('.apk'))) return;
     db.settings.updCheckAt = Date.now();
     db.settings.updAvail = rel.target_commitish;
-    db.settings.updNotes = (rel.body || '').replace(/^Compilada a partir de \w+: /, '').slice(0, 140);
+    db.settings.updNotes = (rel.body || '').replace(/^Compilada a partir de \w+: /, '').slice(0, 200);
     save();
-    if (rel.target_commitish !== __BUILD_SHA__ && state.tab === 'home' && sheet.hidden) render();
+    if (rel.target_commitish === __BUILD_SHA__) return;
+    if (state.tab === 'home' && sheet.hidden) render();
+    if (updShown !== rel.target_commitish) updatePopup();
   } catch { /* sin conexión: se reintenta al abrir */ }
 }
 let pinBuf = '';
@@ -707,6 +734,7 @@ function unlock() {
   lockEl.hidden = true;
   lockEl.innerHTML = '';
   setTimeout(maybeShowNews, 300);
+  if (updPending) setTimeout(updatePopup, 400);
 }
 async function tryBio() {
   if (lockEl.hidden || !Bio || !native.bio || !db.settings.lock?.bio) return;
@@ -1329,6 +1357,8 @@ refreshNative().then(() => { if (!lockEl.hidden) drawLock(); tryBio(); takeNotis
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { hiddenAt = Date.now(); return; }
   if (db.settings.lock && lockEl.hidden && hiddenAt && Date.now() - hiddenAt > 60000) { lockNow(); tryBio(); }
+  if (hiddenAt && Date.now() - hiddenAt > 30 * 60e3) updShown = '';
+  autoCheckUpdate();
   refreshNative().then(() => takeNotis()).catch(console.error);
 });
 setInterval(() => { if (!document.hidden) takeNotis().catch(() => {}); }, 5000);

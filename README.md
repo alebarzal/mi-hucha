@@ -22,7 +22,7 @@ Creada por [alebarzal](https://github.com/alebarzal).
 - **Novedades**: al abrir una versión nueva por primera vez se ven sus cambios (y en Ajustes → Novedades). Se escriben en `src/changelog.js`.
 - **Gesto atrás** que cierra menús y vuelve a Inicio, con confirmación opcional antes de salir.
 - **Copia de seguridad** exportable a un archivo.
-- **Actualizar desde la app**: en cada push a `main`, GitHub Actions compila el APK y lo publica en la versión `latest`; el botón "Buscar actualización" de Ajustes lo descarga e instala encima. Para firmarlo con la misma clave que la app instalada, el workflow usa el secreto `DEBUG_KEYSTORE` (el `debug.keystore` en base64).
+- **Actualizar desde la app**: al abrirla avisa si hay versión nueva. En cada push a `main`, GitHub Actions compila el APK y lo publica en la versión `latest`; el botón "Buscar actualización" de Ajustes lo descarga e instala encima. Para firmarlo con la misma clave que la app instalada, el workflow usa el secreto `DEBUG_KEYSTORE` (el `debug.keystore` en base64).
 
 ## Tecnología
 

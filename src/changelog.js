@@ -2,6 +2,13 @@
 // La primera entrada es la versión actual; añade una nueva arriba en cada versión.
 export const CHANGELOG = [
   {
+    v: '1.13',
+    date: '2026-11-14',
+    items: [
+      ['⬆️', 'Aviso de actualización al entrar', 'Si hay una versión nueva, la app te lo dice nada más abrirla y la instalas con un toque.'],
+    ],
+  },
+  {
     v: '1.12',
     date: '2026-11-14',
     items: [
